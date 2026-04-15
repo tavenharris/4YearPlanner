@@ -1,70 +1,71 @@
-# Getting Started with Create React App
+# SCU 4-Year Planner
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A comprehensive web application for Santa Clara University (SCU) students to map out their academic journey. This tool helps students visualize their 4-year plan, track degree requirements, and prepare for graduation.
+
+## Features
+
+- **Personalized Onboarding**: Sign in with Google and set your major (e.g., Computer Science), minor, and starting term.
+- **Interactive 4-Year Plan**: Drag-and-drop or search to add courses to specific years and terms (Fall, Winter, Spring, Summer).
+- **Requirements Tracking**: Real-time progress monitoring for Major Core, General Education (Core), and Electives.
+- **Course Search**: Quickly find SCU courses and view details directly within the planner.
+- **Advisor Integration**: Tools for students to schedule advisor meetings and for advisors to review student plans.
+- **Status Management**: Track courses as *Planned*, *In Progress*, or *Completed*.
+
+## Tech Stack
+
+- **Frontend**: React.js with Tailwind CSS
+- **Routing**: React Router
+- **Backend/Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth (Google OAuth)
+- **Design**: Material Design principles with custom "Stitch" aesthetics
+
+## Project Structure
+
+- `src/components/`: Modular UI components (Planner, Requirements, Onboarding, etc.)
+- `src/services/`: Database and API interaction logic using Supabase
+- `data/`: Local JSON data for course requirements and configurations
+- `StitchDesign/`: Design specifications and reference screenshots
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js and npm
+- A Supabase project (for database and auth)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd 4_year_planner
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure Environment Variables:
+   Create a `.env` file in the root directory and add your Supabase credentials:
+   ```env
+   REACT_APP_SUPABASE_URL=your-supabase-url
+   REACT_APP_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+4. Run the development server:
+   ```bash
+   npm start
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start`: Runs the app in development mode.
+- `npm test`: Launches the test runner.
+- `npm run build`: Builds the app for production.
+- `npm run eject`: Removes the single build dependency (standard CRA eject).
 
-### `npm start`
+## License
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This project is developed for Santa Clara University students.
