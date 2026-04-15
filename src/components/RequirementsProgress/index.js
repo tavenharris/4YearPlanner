@@ -1,7 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getMajorRequirements } from '../../services/db';
 
 function RequirementsProgress() {
+  const [majorRequirements, setMajorRequirements] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadRequirements() {
+      setLoading(true);
+      const data = await getMajorRequirements('CSCI');
+      setMajorRequirements(data);
+      setLoading(false);
+    }
+    loadRequirements();
+  }, []);
+
   return (
     <>
             <header className="flex justify-between items-center w-full px-8 py-4 bg-[#faf5ee] dark:bg-stone-900 border-b border-[#d8d0c8]/60 dark:border-stone-800 shadow-[0_2px_16px_rgba(58,48,42,0.04)] sticky top-0 z-40">
@@ -66,102 +80,96 @@ function RequirementsProgress() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Main Requirements Tree (Left/Wide) */}
                     <div className="lg:col-span-8 space-y-6">
-                        {/* Core CS Section */}
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h2 className="font-headline text-2xl font-bold italic text-on-surface">Computer Science Core</h2>
-                                <span className="font-body text-xs text-on-surface-variant tracking-widest uppercase">9 of 12 Credits</span>
+                        {loading ? (
+                            <div className="text-center py-10">
+                                <span className="material-symbols-outlined text-stone-300 text-4xl mb-2 animate-spin">refresh</span>
+                                <p className="text-sm text-stone-500">Loading requirements from database...</p>
                             </div>
-                            
-                            <div className="space-y-3">
-                                {/* Course Item: Met */}
-                                <div className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-body font-bold text-on-surface">CS 101: Data Structures</p>
-                                            <p className="font-body text-xs text-on-surface-variant">Completed Fall 2023 • Grade: A</p>
-                                        </div>
+                        ) : majorRequirements ? (
+                            <>
+                                {/* Core CS Section */}
+                                <section className="space-y-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h2 className="font-headline text-2xl font-bold italic text-on-surface">{majorRequirements.name} Core</h2>
+                                        <span className="font-body text-xs text-on-surface-variant tracking-widest uppercase">
+                                            {majorRequirements.requirements.major_requirements.length} Required
+                                        </span>
                                     </div>
-                                    <span className="px-3 py-1 bg-surface-container text-on-secondary-fixed-variant text-[10px] font-bold rounded-full tracking-wider uppercase">Met</span>
-                                </div>
+                                    
+                                    <div className="space-y-3">
+                                        {majorRequirements.requirements.major_requirements.map((req, idx) => (
+                                            req.type === 'course' && (
+                                                <div key={idx} className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-outline">
+                                                            <span className="material-symbols-outlined">lock</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-body font-bold text-on-surface">{req.course_id}: {req.name}</p>
+                                                            <p className="font-body text-xs text-on-surface-variant">Required</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="px-3 py-1 border border-outline-variant text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider uppercase">Remaining</span>
+                                                </div>
+                                            )
+                                        ))}
+                                    </div>
+                                </section>
 
-                                {/* Course Item: Planned */}
-                                <div className="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-primary border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
-                                            <span className="material-symbols-outlined">schedule</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-body font-bold text-on-surface">CS 305: Operating Systems</p>
-                                            <p className="font-body text-xs text-on-surface-variant">Planned for Spring 2024</p>
-                                        </div>
+                                {/* Electives Section */}
+                                <section className="space-y-4 pt-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h2 className="font-headline text-2xl font-bold italic text-on-surface">Major Electives</h2>
                                     </div>
-                                    <span className="px-3 py-1 bg-primary-container text-on-primary-container text-[10px] font-bold rounded-full tracking-wider uppercase">Planned</span>
-                                </div>
-
-                                {/* Course Item: Planned */}
-                                <div className="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-primary border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
-                                            <span className="material-symbols-outlined">schedule</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-body font-bold text-on-surface">CS 410: Database Systems</p>
-                                            <p className="font-body text-xs text-on-surface-variant">Planned for Fall 2024</p>
-                                        </div>
+                                    <div className="space-y-3">
+                                        {majorRequirements.requirements.major_requirements.map((req, idx) => (
+                                            req.type === 'elective_group' && (
+                                                <div key={idx} className="bg-surface-container p-6 rounded-xl border border-outline-variant/30 flex flex-col justify-between group cursor-pointer hover:bg-surface-variant transition-colors">
+                                                    <div className="mb-4">
+                                                        <p className="font-body font-bold text-on-surface mb-1">{req.name}</p>
+                                                        <p className="font-body text-xs text-on-surface-variant leading-relaxed">{req.description}</p>
+                                                        <p className="font-body text-xs font-semibold text-primary mt-2">Need to complete: {req.courses_needed} courses</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        ))}
                                     </div>
-                                    <span className="px-3 py-1 bg-primary-container text-on-primary-container text-[10px] font-bold rounded-full tracking-wider uppercase">Planned</span>
-                                </div>
-
-                                {/* Course Item: Remaining */}
-                                <div className="bg-surface-container-lowest/50 p-5 rounded-xl border border-dashed border-outline-variant flex items-center justify-between opacity-70">
-                                    <div className="flex items-center space-x-4">
-                                        <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-outline">
-                                            <span className="material-symbols-outlined">lock</span>
-                                        </div>
-                                        <div>
-                                            <p className="font-body font-bold text-on-surface">CS 490: Senior Capstone</p>
-                                            <p className="font-body text-xs text-on-surface-variant">Prerequisite: 100+ Credits</p>
-                                        </div>
+                                </section>
+                                
+                                {/* Core Requirements Section */}
+                                <section className="space-y-4 pt-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h2 className="font-headline text-2xl font-bold italic text-on-surface">University Core Requirements</h2>
+                                        <span className="font-body text-xs text-on-surface-variant tracking-widest uppercase">
+                                            {majorRequirements.requirements.core_requirements.length} Required
+                                        </span>
                                     </div>
-                                    <span className="px-3 py-1 border border-outline-variant text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider uppercase">Remaining</span>
-                                </div>
+                                    
+                                    <div className="space-y-3">
+                                        {majorRequirements.requirements.core_requirements.map((req, idx) => (
+                                            <div key={idx} className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
+                                                <div className="flex items-center space-x-4">
+                                                    <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-outline">
+                                                        <span className="material-symbols-outlined">public</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-body font-bold text-on-surface">{req.name}</p>
+                                                        <p className="font-body text-xs text-on-surface-variant">
+                                                            {req.type === 'choose_n' ? `Choose ${req.courses_needed} from: ${req.options.join(', ')}` : req.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-3 py-1 border border-outline-variant text-on-surface-variant text-[10px] font-bold rounded-full tracking-wider uppercase">Remaining</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            </>
+                        ) : (
+                            <div className="text-center py-10 text-red-500">
+                                <p>Failed to load major requirements data.</p>
                             </div>
-                        </section>
-
-                        {/* Electives Section */}
-                        <section className="space-y-4 pt-4">
-                            <div className="flex items-center justify-between px-2">
-                                <h2 className="font-headline text-2xl font-bold italic text-on-surface">Upper-Level Electives</h2>
-                                <span className="font-body text-xs text-on-surface-variant tracking-widest uppercase">Select 4 courses</span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Elective Card */}
-                                <div className="bg-surface-container p-6 rounded-xl border border-outline-variant/30 flex flex-col justify-between group cursor-pointer hover:bg-surface-variant transition-colors">
-                                    <div className="mb-4">
-                                        <p className="font-body font-bold text-on-surface mb-1">AI &amp; Machine Learning</p>
-                                        <p className="font-body text-xs text-on-surface-variant leading-relaxed">Introduction to neural networks, deep learning, and supervised models.</p>
-                                    </div>
-                                    <button className="text-xs font-bold text-primary flex items-center group-hover:translate-x-1 transition-transform">
-                                        View Syllabus <span className="material-symbols-outlined text-sm ml-1">arrow_forward</span>
-                                    </button>
-                                </div>
-
-                                {/* Elective Card */}
-                                <div className="bg-surface-container p-6 rounded-xl border border-outline-variant/30 flex flex-col justify-between group cursor-pointer hover:bg-surface-variant transition-colors">
-                                    <div className="mb-4">
-                                        <p className="font-body font-bold text-on-surface mb-1">Cybersecurity Fundamentals</p>
-                                        <p className="font-body text-xs text-on-surface-variant leading-relaxed">Network security, cryptography, and defense mechanisms.</p>
-                                    </div>
-                                    <button className="text-xs font-bold text-primary flex items-center group-hover:translate-x-1 transition-transform">
-                                        View Syllabus <span className="material-symbols-outlined text-sm ml-1">arrow_forward</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </section>
+                        )}
                     </div>
 
                     {/* Right Sidebar / Supplemental (Narrow) */}

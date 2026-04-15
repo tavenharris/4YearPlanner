@@ -1,12 +1,58 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { searchCourses, getCourseData, getMajorRequirements } from '../../services/db';
 
 function StudentPlanner() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [courseData, setCourseData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [majorRequirements, setMajorRequirements] = useState(null);
+  const [activeTab, setActiveTab] = useState('search'); // 'search' or 'requirements'
+
+  // Fetch initial major requirements
+  useEffect(() => {
+    async function loadRequirements() {
+      const data = await getMajorRequirements('CSCI');
+      setMajorRequirements(data);
+    }
+    loadRequirements();
+  }, []);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.length > 1) {
+        setLoading(true);
+        const results = await searchCourses(searchQuery.toUpperCase());
+        setSearchResults(results || []);
+        setLoading(false);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load selected course data
+  useEffect(() => {
+    async function loadData() {
+      if (selectedCourse) {
+        const data = await getCourseData(selectedCourse);
+        setCourseData(data);
+      } else {
+        setCourseData(null);
+      }
+    }
+    loadData();
+  }, [selectedCourse]);
+
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
         {/* TopNavBar */}
         <header className="flex justify-between items-center w-full px-8 py-4 bg-[#faf5ee] border-b border-[#d8d0c8]/60 shadow-[0_2px_16px_rgba(58,48,42,0.04)] z-10">
             <div className="flex items-center space-x-6">
-                <span className="text-2xl font-headline italic text-[#c2652a]">Sahara Academic</span>
+                <span className="text-2xl font-headline italic text-[#c2652a]">4 Year Planner</span>
                 <div className="hidden lg:flex items-center space-x-4">
                     <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 material-symbols-outlined" style={{ fontSize: '18px' }}>search</span>
@@ -32,7 +78,7 @@ function StudentPlanner() {
                     <div className="flex justify-between items-end mb-8">
                         <div>
                             <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap</h1>
-                            <p className="text-stone-500 font-body">Computer Science B.S. • Class of 2026</p>
+                            <p className="text-stone-500 font-body">{majorRequirements ? majorRequirements.name : 'Computer Science B.S.'} • Class of 2026</p>
                         </div>
                         <div className="flex space-x-4">
                             <div className="bg-surface-container-high px-4 py-2 rounded-lg text-xs font-bold text-on-surface flex items-center gap-2">
@@ -192,69 +238,196 @@ function StudentPlanner() {
             </section>
 
             {/* Right Side: Course Search Panel */}
-            <aside className="w-80 bg-surface-container border-l border-outline-variant/60 p-6 overflow-y-auto hidden xl:block">
-                <div className="sticky top-0 bg-surface-container pb-4 z-10">
-                    <h3 className="text-lg font-headline font-semibold mb-4 text-on-surface">Course Search</h3>
-                    <div className="relative mb-6">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 material-symbols-outlined" style={{ fontSize: '20px' }}>search</span>
-                        <input className="w-full pl-10 pr-4 py-2.5 bg-white border-outline-variant/60 rounded-xl text-sm focus:ring-primary focus:border-primary transition-all" placeholder="Search by name or ID..." type="text" />
+            <aside className="w-80 bg-surface-container border-l border-outline-variant/60 p-6 overflow-y-auto hidden xl:flex xl:flex-col">
+                <div className="sticky top-0 bg-surface-container pb-4 z-10 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-headline font-semibold text-on-surface">Planner Tools</h3>
+                    </div>
+                    <div className="flex rounded-lg bg-surface-container-low p-1 border border-outline-variant/40">
+                        <button 
+                            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${activeTab === 'search' ? 'bg-white shadow-sm text-primary' : 'text-stone-500 hover:text-stone-700'}`}
+                            onClick={() => setActiveTab('search')}
+                        >
+                            Search
+                        </button>
+                        <button 
+                            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${activeTab === 'requirements' ? 'bg-white shadow-sm text-primary' : 'text-stone-500 hover:text-stone-700'}`}
+                            onClick={() => setActiveTab('requirements')}
+                        >
+                            Requirements
+                        </button>
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    <div>
-                        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">Popular This Quarter</p>
-                        <div className="space-y-3">
-                            {/* Course Item */}
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/40 hover:border-primary/50 cursor-pointer group transition-all">
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-bold text-primary">CS 221</span>
-                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
-                                </div>
-                                <p className="text-xs font-semibold text-on-surface">Artificial Intelligence</p>
-                                <div className="mt-3 flex items-center justify-between">
-                                    <span className="text-[10px] text-stone-500">4 Units • Autumn</span>
-                                    <span className="px-2 py-0.5 bg-surface-container rounded text-[9px] font-bold text-stone-600">Core</span>
+                <div className="flex-1 overflow-y-auto pr-2">
+                    {activeTab === 'search' ? (
+                        <div className="space-y-6">
+                            <div className="relative mb-2">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 material-symbols-outlined" style={{ fontSize: '20px' }}>search</span>
+                                <input 
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-sm focus:ring-primary focus:border-primary transition-all" 
+                                    placeholder="Search by ID (e.g. CS106B)..." 
+                                    type="text" 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">
+                                    {searchQuery ? (loading ? 'Searching...' : 'Search Results') : 'Popular This Quarter'}
+                                </p>
+                                <div className="space-y-3">
+                                    {searchQuery && searchResults.length === 0 && !loading && (
+                                        <p className="text-xs text-stone-500">No courses found matching "{searchQuery}"</p>
+                                    )}
+                                    
+                                    {searchResults.length > 0 ? (
+                                        searchResults.map(course => (
+                                            <div 
+                                                key={course.id}
+                                                onClick={() => setSelectedCourse(course.id)}
+                                                className={`bg-white p-4 rounded-xl shadow-sm border cursor-pointer group transition-all ${selectedCourse === course.id ? 'border-primary bg-primary/5' : 'border-outline-variant/40 hover:border-primary/50'}`}
+                                            >
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="text-xs font-bold text-primary">{course.id}</span>
+                                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (!searchQuery && (
+                                        <>
+                                            {/* Default Static Popular Courses */}
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/40 hover:border-primary/50 cursor-pointer group transition-all" onClick={() => setSelectedCourse('CS221')}>
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="text-xs font-bold text-primary">CS 221</span>
+                                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
+                                                </div>
+                                                <p className="text-xs font-semibold text-on-surface">Artificial Intelligence</p>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <span className="text-[10px] text-stone-500">4 Units • Autumn</span>
+                                                    <span className="px-2 py-0.5 bg-surface-container rounded text-[9px] font-bold text-stone-600">Core</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/40 hover:border-primary/50 cursor-pointer group transition-all" onClick={() => setSelectedCourse('CS145')}>
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="text-xs font-bold text-primary">CS 145</span>
+                                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
+                                                </div>
+                                                <p className="text-xs font-semibold text-on-surface">Data Management</p>
+                                                <div className="mt-3 flex items-center justify-between">
+                                                    <span className="text-[10px] text-stone-500">4 Units • All terms</span>
+                                                    <span className="px-2 py-0.5 bg-surface-container rounded text-[9px] font-bold text-stone-600">Elective</span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* Course Item */}
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/40 hover:border-primary/50 cursor-pointer group transition-all">
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-bold text-primary">CS 145</span>
-                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
+                            {/* Show stats if a course is selected and data is loaded */}
+                            {selectedCourse && courseData && (
+                                <div className="bg-white rounded-2xl p-5 border border-primary/20 shadow-md animate-fade-in">
+                                    <h4 className="text-sm font-bold text-primary mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-md">analytics</span> {selectedCourse} Stats
+                                    </h4>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] uppercase text-stone-400 font-bold mb-1">Difficulty</p>
+                                            <div className="w-full bg-stone-100 rounded-full h-2">
+                                                <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${(courseData.difficultyTotal / courseData.difficultyCount) / 5 * 100}%` }}></div>
+                                            </div>
+                                            <p className="text-xs text-stone-600 mt-1">{(courseData.difficultyTotal / courseData.difficultyCount).toFixed(2)} / 5.0</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] uppercase text-stone-400 font-bold mb-1">Workload</p>
+                                            <div className="w-full bg-stone-100 rounded-full h-2">
+                                                <div className="bg-red-400 h-2 rounded-full" style={{ width: `${Math.min(courseData.workloadTotal / courseData.workloadCount / 20 * 100, 100)}%` }}></div>
+                                            </div>
+                                            <p className="text-xs text-stone-600 mt-1">{(courseData.workloadTotal / courseData.workloadCount).toFixed(1)} hrs/wk</p>
+                                        </div>
+                                        {courseData.recentTerms && courseData.recentTerms.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] uppercase text-stone-400 font-bold mb-1">Recent Terms</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {courseData.recentTerms.slice(0, 3).map(term => (
+                                                        <span key={term} className="text-[9px] bg-stone-100 text-stone-600 px-2 py-1 rounded">{term}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <p className="text-xs font-semibold text-on-surface">Data Management</p>
-                                <div className="mt-3 flex items-center justify-between">
-                                    <span className="text-[10px] text-stone-500">4 Units • All terms</span>
-                                    <span className="px-2 py-0.5 bg-surface-container rounded text-[9px] font-bold text-stone-600">Elective</span>
+                            )}
+                            
+                            {!selectedCourse && (
+                                <div className="bg-primary/5 rounded-2xl p-5 border border-primary/10">
+                                    <h4 className="text-xs font-bold text-primary mb-2 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm">auto_awesome</span> Smart Recommendations
+                                    </h4>
+                                    <p className="text-[11px] text-stone-600 leading-relaxed mb-4">Based on your Senior-year goals, you should complete <strong>CS 107E</strong> before next Autumn.</p>
+                                    <button className="w-full py-2 bg-primary text-white text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity">
+                                        Find CS 107E Sections
+                                    </button>
                                 </div>
-                            </div>
-
-                            {/* Course Item */}
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/40 hover:border-primary/50 cursor-pointer group transition-all">
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-bold text-primary">PWR 2</span>
-                                    <span className="material-symbols-outlined text-stone-300 group-hover:text-primary transition-colors">add_circle</span>
-                                </div>
-                                <p className="text-xs font-semibold text-on-surface">The Rhetoric of Code</p>
-                                <div className="mt-3 flex items-center justify-between">
-                                    <span className="text-[10px] text-stone-500">4 Units • Autumn</span>
-                                    <span className="px-2 py-0.5 bg-surface-container rounded text-[9px] font-bold text-stone-600">Gen-Ed</span>
-                                </div>
-                            </div>
+                            )}
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {majorRequirements ? (
+                                <>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-on-surface mb-3 flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-primary text-[18px]">menu_book</span> Major Requirements
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {majorRequirements.requirements.major_requirements.map((req, idx) => (
+                                                <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-outline-variant/40 flex items-start gap-3 cursor-grab hover:border-primary/40 transition-colors">
+                                                    <div className="mt-0.5 text-stone-300">
+                                                        <span className="material-symbols-outlined text-sm">drag_indicator</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-stone-800">
+                                                            {req.type === 'course' ? req.course_id : req.name}
+                                                        </p>
+                                                        <p className="text-[10px] text-stone-500 mt-0.5">
+                                                            {req.type === 'course' ? req.name : req.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
 
-                    <div className="bg-primary/5 rounded-2xl p-5 border border-primary/10">
-                        <h4 className="text-xs font-bold text-primary mb-2 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm">auto_awesome</span> Smart Recommendations
-                        </h4>
-                        <p className="text-[11px] text-stone-600 leading-relaxed mb-4">Based on your Senior-year goals, you should complete <strong>CS 107E</strong> before next Autumn.</p>
-                        <button className="w-full py-2 bg-primary text-white text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity">
-                            Find CS 107E Sections
-                        </button>
-                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-on-surface mb-3 flex items-center gap-2 mt-6">
+                                            <span className="material-symbols-outlined text-primary text-[18px]">public</span> Core Requirements
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {majorRequirements.requirements.core_requirements.map((req, idx) => (
+                                                <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-outline-variant/40 flex items-start gap-3 cursor-grab hover:border-primary/40 transition-colors">
+                                                    <div className="mt-0.5 text-stone-300">
+                                                        <span className="material-symbols-outlined text-sm">drag_indicator</span>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-stone-800">{req.name}</p>
+                                                        <p className="text-[10px] text-stone-500 mt-0.5">
+                                                            {req.type === 'choose_n' ? `Choose ${req.courses_needed} from: ${req.options.join(', ')}` : req.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-10">
+                                    <span className="material-symbols-outlined text-stone-300 text-4xl mb-2">pending</span>
+                                    <p className="text-xs text-stone-500">Loading requirements...</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </aside>
         </div>
