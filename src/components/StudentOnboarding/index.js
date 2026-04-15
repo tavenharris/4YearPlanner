@@ -53,7 +53,7 @@ function StudentOnboarding() {
                 <h1 className="text-5xl md:text-6xl font-['EB_Garamond'] text-on-surface leading-tight mb-4">Welcome to your future.</h1>
                 <p className="text-on-surface-variant text-lg font-['Manrope'] max-w-md mx-auto">Sign in or create an account to start designing your four-year academic path.</p>
             </header>
-            <button onClick={() => setStep(2)} className="flex items-center space-x-3 bg-white text-stone-700 px-8 py-4 rounded-xl font-['Manrope'] font-bold text-lg shadow-sm border border-stone-200 hover:shadow-md transition-all active:scale-95">
+            <button onClick={handleGoogleLogin} className="flex items-center space-x-3 bg-white text-stone-700 px-8 py-4 rounded-xl font-['Manrope'] font-bold text-lg shadow-sm border border-stone-200 hover:shadow-md transition-all active:scale-95">
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google logo" className="w-6 h-6" />
                 <span>Continue with Google</span>
             </button>
