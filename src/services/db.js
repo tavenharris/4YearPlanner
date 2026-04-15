@@ -57,3 +57,64 @@ export async function getMajorRequirements(majorId) {
     }
     return data;
 }
+
+export async function getUserProfile(userId) {
+    const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', error);
+    }
+    return data;
+}
+
+export async function saveUserProfile(userId, profileData) {
+    const { data, error } = await supabase
+        .from('user_profiles')
+        .upsert({ id: userId, ...profileData })
+        .select();
+    if (error) {
+        console.error('Error saving user profile:', error);
+        return null;
+    }
+    return data;
+}
+
+export async function getUserCourses(userId) {
+    const { data, error } = await supabase
+        .from('user_courses')
+        .select('*')
+        .eq('user_id', userId);
+    if (error) {
+        console.error('Error fetching user courses:', error);
+        return [];
+    }
+    return data;
+}
+
+export async function saveUserCourse(courseData) {
+    const { data, error } = await supabase
+        .from('user_courses')
+        .insert(courseData)
+        .select();
+    if (error) {
+        console.error('Error saving user course:', error);
+        return null;
+    }
+    return data;
+}
+
+export async function deleteUserCourse(courseRecordId) {
+    const { data, error } = await supabase
+        .from('user_courses')
+        .delete()
+        .eq('id', courseRecordId)
+        .select();
+    if (error) {
+        console.error('Error deleting user course:', error);
+        return null;
+    }
+    return data;
+}

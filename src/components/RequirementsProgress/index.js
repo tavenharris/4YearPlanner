@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { getMajorRequirements } from '../../services/db';
 
 function RequirementsProgress() {
@@ -18,23 +17,6 @@ function RequirementsProgress() {
 
   return (
     <>
-            <header className="flex justify-between items-center w-full px-8 py-4 bg-[#faf5ee] dark:bg-stone-900 border-b border-[#d8d0c8]/60 dark:border-stone-800 shadow-[0_2px_16px_rgba(58,48,42,0.04)] sticky top-0 z-40">
-                <div className="flex items-center">
-                    <h1 className="text-2xl font-['EB_Garamond'] font-semibold text-on-surface">Major Progress</h1>
-                </div>
-                <div className="flex items-center space-x-6">
-                    <div className="hidden lg:flex items-center space-x-8">
-                        <Link className="text-stone-600 dark:text-stone-400 hover:text-[#c2652a] transition-colors duration-200 font-['EB_Garamond'] font-semibold" to="#">Overview</Link>
-                        <Link className="text-[#c2652a] dark:text-orange-400 border-b-2 border-[#c2652a] font-['EB_Garamond'] font-semibold" to="#">Degree Audit</Link>
-                        <Link className="text-stone-600 dark:text-stone-400 hover:text-[#c2652a] transition-colors duration-200 font-['EB_Garamond'] font-semibold" to="#">Transfer Credits</Link>
-                    </div>
-                    <div className="flex items-center space-x-4 border-l border-[#d8d0c8]/60 pl-6">
-                        <button className="text-stone-600 hover:text-primary"><span className="material-symbols-outlined">notifications</span></button>
-                        <button className="text-stone-600 hover:text-primary"><span className="material-symbols-outlined">account_circle</span></button>
-                    </div>
-                </div>
-            </header>
-
             {/* Content */}
             <div className="max-w-6xl mx-auto p-8 space-y-10">
                 {/* Hero Stats / Summary Section */}

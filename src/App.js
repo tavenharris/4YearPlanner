@@ -1,24 +1,79 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import './App.css';
 
-import AdvisorPlanReview from './components/AdvisorPlanReview';
 import AdvisorRoster from './components/AdvisorRoster';
 import RequirementsProgress from './components/RequirementsProgress';
 import StudentNotifications from './components/StudentNotifications';
 import StudentOnboarding from './components/StudentOnboarding';
 import StudentPlanner from './components/StudentPlanner';
+import StudentSettings from './components/StudentSettings';
+import { getUserProfile } from './services/db';
+import { supabase } from './services/supabaseClient';
+
+const MAJOR_LABELS = {
+  CSCI: 'Computer Science',
+};
 
 function AppContent() {
   const location = useLocation();
   const isSetupRoute = location.pathname === '/student-onboarding';
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    async function syncUser(session) {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setProfile(null);
+        return;
+      }
+
+      const userProfile = await getUserProfile(currentUser.id);
+      setProfile(userProfile || null);
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      syncUser(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncUser(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const userMetadata = user?.user_metadata || {};
+  const displayName = useMemo(() => {
+    return (
+      profile?.full_name ||
+      userMetadata.full_name ||
+      userMetadata.name ||
+      user?.email ||
+      'Student'
+    );
+  }, [profile?.full_name, user?.email, userMetadata.full_name, userMetadata.name]);
+
+  const avatarUrl = profile?.avatar_url || userMetadata.avatar_url || userMetadata.picture || null;
+  const subtitle = useMemo(() => {
+    const details = [];
+    const majorLabel = MAJOR_LABELS[profile?.major] || profile?.major;
+
+    if (majorLabel) details.push(majorLabel);
+    if (profile?.starting_term) details.push(profile.starting_term);
+
+    return details.join(' • ') || 'Student';
+  }, [profile?.major, profile?.starting_term]);
 
   const navLinks = [
-    { to: "/student-planner", icon: "dashboard", label: "Dashboard" },
     { to: "/student-planner", icon: "calendar_month", label: "Course Plan" },
-    { to: "/advisor-plan-review", icon: "rate_review", label: "Advisor Reviews" },
     { to: "/requirements-progress", icon: "checklist", label: "Requirements" },
-    { to: "/", icon: "settings", label: "Settings" }
+    { to: "/settings", icon: "settings", label: "Settings" }
   ];
 
   return (
@@ -31,11 +86,17 @@ function AppContent() {
               </div>
               <div className="flex items-center space-x-3 mb-10 p-2">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container-highest">
-                      <img className="w-full h-full object-cover" alt="Portrait of Julianne Smith" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCnsR9P51fkx1BiWzVZIn-qP-Wt51x-QKbs-buV6GKrTejO3SdD8l_t-88Be9_GyVOci-sCCYNVe32zUy-0fUA8unsgplasdnE7JarJIHRO0v5WTvJEq0rx-IzQXhds_XpHmHi-KrrYqd0OlTpsw-O28k5mmSv3nr5K7vFLIt5tt9_rnE1OWlYkgHEzzyfDrEqevPq7BFjNq1JdkvJh1l796sLdqNi5K-RBXs1GvJF21h3EQuoS3O50CmOCeTCkRM8tn7sGPUxEBBSo"/>
+                      {avatarUrl ? (
+                        <img className="w-full h-full object-cover" alt={`${displayName} profile`} src={avatarUrl} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm font-bold text-stone-600">
+                          {displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                   </div>
                   <div>
-                      <p className="text-sm font-bold font-['Manrope'] text-on-surface">Julianne Smith</p>
-                      <p className="text-xs text-stone-500 dark:text-stone-400">Computer Science, Junior</p>
+                      <p className="text-sm font-bold font-['Manrope'] text-on-surface">{displayName}</p>
+                      <p className="text-xs text-stone-500 dark:text-stone-400">{subtitle}</p>
                   </div>
               </div>
               <nav className="flex-1 space-y-1">
@@ -70,9 +131,9 @@ function AppContent() {
         <main className={`flex-1 ${!isSetupRoute ? 'md:ml-64 pb-20 md:pb-0' : ''} bg-background min-h-screen`}>
             <Routes>
                 <Route path="/" element={<Navigate to="/student-onboarding" />} />
-                <Route path="/advisor-plan-review" element={<AdvisorPlanReview />} />
                 <Route path="/advisor-roster" element={<AdvisorRoster />} />
                 <Route path="/requirements-progress" element={<RequirementsProgress />} />
+                <Route path="/settings" element={<StudentSettings />} />
                 <Route path="/student-notifications" element={<StudentNotifications />} />
                 <Route path="/student-onboarding" element={<StudentOnboarding />} />
                 <Route path="/student-planner" element={<StudentPlanner />} />
@@ -82,10 +143,6 @@ function AppContent() {
             {!isSetupRoute && (
               <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#faf5ee] border-t border-[#d8d0c8]/60 flex justify-around py-4 px-2 z-50">
                   <Link to="/student-planner" className={`flex flex-col items-center ${location.pathname === '/student-planner' ? 'text-primary font-bold' : 'text-stone-500'}`}>
-                      <span className="material-symbols-outlined">dashboard</span>
-                      <span className="text-[10px] mt-1">Home</span>
-                  </Link>
-                  <Link to="/student-planner" className={`flex flex-col items-center ${location.pathname === '/student-planner' ? 'text-primary font-bold' : 'text-stone-500'}`}>
                       <span className="material-symbols-outlined">calendar_month</span>
                       <span className="text-[10px] mt-1">Plan</span>
                   </Link>
@@ -93,7 +150,7 @@ function AppContent() {
                       <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>checklist</span>
                       <span className="text-[10px] mt-1">Audit</span>
                   </Link>
-                  <Link to="/" className="flex flex-col items-center text-stone-500">
+                  <Link to="/settings" className={`flex flex-col items-center ${location.pathname === '/settings' ? 'text-primary font-bold' : 'text-stone-500'}`}>
                       <span className="material-symbols-outlined">account_circle</span>
                       <span className="text-[10px] mt-1">Profile</span>
                   </Link>

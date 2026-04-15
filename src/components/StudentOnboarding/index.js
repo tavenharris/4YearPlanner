@@ -1,34 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
+import { saveUserProfile, getUserProfile } from '../../services/db';
 
 function StudentOnboarding() {
   const [step, setStep] = useState(1);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const navigate = useNavigate();
 
   // For step 2 form
-  const [major, setMajor] = useState('Computer Science');
+  const [major, setMajor] = useState('CSCI');
   const [minor, setMinor] = useState('None');
   const [term, setTerm] = useState('Fall 2024');
 
   useEffect(() => {
+    async function checkUser(session) {
+      if (!session?.user) {
+        setStep(1);
+        setIsCheckingSession(false);
+        return;
+      }
+
+      const profile = await getUserProfile(session.user.id);
+
+      if (profile && profile.major) {
+         setMajor(profile.major);
+         if (profile.minor) setMinor(profile.minor);
+         if (profile.starting_term) setTerm(profile.starting_term);
+         navigate('/student-planner', { replace: true });
+         return;
+      }
+
+      setStep(2);
+      setIsCheckingSession(false);
+    }
+
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setStep(2);
-      }
+      checkUser(session);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setStep(2);
-      }
+      checkUser(session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-6">
+        <div className="w-full max-w-xl rounded-[28px] border border-[#d8d0c8]/60 bg-[#fffaf4] p-10 text-center shadow-[0_2px_16px_rgba(58,48,42,0.04)]">
+          <div className="inline-flex items-center space-x-2 mb-6">
+            <span className="w-12 h-[1px] bg-outline-variant"></span>
+            <span className="text-primary font-['EB_Garamond'] italic text-2xl tracking-tight">4 Year Planner</span>
+            <span className="w-12 h-[1px] bg-outline-variant"></span>
+          </div>
+          <h1 className="text-4xl font-['EB_Garamond'] text-on-surface mb-3">Preparing your workspace.</h1>
+          <p className="text-on-surface-variant font-['Manrope']">Checking your profile and routing you to the right next step.</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -38,6 +73,22 @@ function StudentOnboarding() {
       }
     });
     if (error) console.error("Error logging in:", error.message);
+  };
+
+  const handleSaveProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const userMetadata = session.user.user_metadata || {};
+
+      await saveUserProfile(session.user.id, {
+        full_name: userMetadata.full_name || userMetadata.name || session.user.email,
+        avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
+        major: major,
+        minor: minor,
+        starting_term: term
+      });
+      navigate('/student-planner');
+    }
   };
 
   if (step === 1) {
@@ -118,10 +169,10 @@ function StudentOnboarding() {
                                             onChange={(e) => setMajor(e.target.value)}
                                             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-4 px-4 focus:ring-primary focus:border-primary appearance-none text-on-surface cursor-pointer transition-all"
                                         >
-                                            <option>Computer Science</option>
-                                            <option>Mathematics</option>
-                                            <option>Physics</option>
-                                            <option>Architecture</option>
+                                            <option value="CSCI">Computer Science</option>
+                                            <option value="MATH">Mathematics</option>
+                                            <option value="PHYS">Physics</option>
+                                            <option value="ARCH">Architecture</option>
                                         </select>
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-outline">
                                             <span className="material-symbols-outlined">expand_more</span>
@@ -199,7 +250,7 @@ function StudentOnboarding() {
                             <span className="material-symbols-outlined mr-2">arrow_back</span>
                             Back
                         </button>
-                        <button onClick={() => navigate('/requirements-progress')} className="bg-primary text-white px-10 py-4 rounded-lg font-['Manrope'] font-bold text-lg hover:shadow-lg transition-all active:opacity-80">
+                        <button onClick={handleSaveProfile} className="bg-primary text-white px-10 py-4 rounded-lg font-['Manrope'] font-bold text-lg hover:shadow-lg transition-all active:opacity-80">
                             Continue to Requirements
                         </button>
                     </div>

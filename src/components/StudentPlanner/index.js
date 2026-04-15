@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { searchCourses, getCourseData, getMajorRequirements } from '../../services/db';
+import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, deleteUserCourse } from '../../services/db';
+import { supabase } from '../../services/supabaseClient';
+
+const YEARS = [
+  { id: 1, title: 'Year 1: Freshman' },
+  { id: 2, title: 'Year 2: Sophomore' },
+  { id: 3, title: 'Year 3: Junior' },
+  { id: 4, title: 'Year 4: Senior' },
+];
+const TERMS = ['Fall', 'Winter', 'Spring', 'Summer'];
 
 function StudentPlanner() {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [userCourses, setUserCourses] = useState([]);
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -10,13 +23,63 @@ function StudentPlanner() {
   const [majorRequirements, setMajorRequirements] = useState(null);
   const [activeTab, setActiveTab] = useState('search'); // 'search' or 'requirements'
 
-  // Fetch initial major requirements
-  useEffect(() => {
-    async function loadRequirements() {
-      const data = await getMajorRequirements('CSCI');
-      setMajorRequirements(data);
+  const handleAddCourse = async (year, term) => {
+    if (!user || !selectedCourse) return;
+    
+    // Check if course is already in this term
+    const exists = userCourses.find(c => c.course_id === selectedCourse && c.year === year && c.term === term);
+    if (exists) return;
+
+    const newCourse = {
+      user_id: user.id,
+      course_id: selectedCourse,
+      year,
+      term,
+      status: 'planned',
+      credits: 5 // Defaulting to 5 for now
+    };
+    
+    const saved = await saveUserCourse(newCourse);
+    if (saved && saved.length > 0) {
+      setUserCourses(prev => [...prev, saved[0]]);
     }
-    loadRequirements();
+  };
+
+  const handleRemoveCourse = async (courseRecordId) => {
+    await deleteUserCourse(courseRecordId);
+    setUserCourses(prev => prev.filter(c => c.id !== courseRecordId));
+  };
+
+  // Fetch User and Profile Data
+  useEffect(() => {
+    async function loadUserData() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        
+        // Fetch custom user profile (e.g., major, name)
+        const userProfile = await getUserProfile(session.user.id);
+        if (userProfile) {
+          setProfile(userProfile);
+          // Fetch major requirements based on user's selected major
+          const data = await getMajorRequirements(userProfile.major || 'CSCI');
+          setMajorRequirements(data);
+        } else {
+          // Fallback if no profile
+          const data = await getMajorRequirements('CSCI');
+          setMajorRequirements(data);
+        }
+
+        // Fetch their saved 4-year plan courses
+        const courses = await getUserCourses(session.user.id);
+        if (courses) setUserCourses(courses);
+      } else {
+        // Fallback for non-logged in users
+        const data = await getMajorRequirements('CSCI');
+        setMajorRequirements(data);
+      }
+    }
+    loadUserData();
   }, []);
 
   // Debounced search
@@ -49,27 +112,6 @@ function StudentPlanner() {
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        {/* TopNavBar */}
-        <header className="flex justify-between items-center w-full px-8 py-4 bg-[#faf5ee] border-b border-[#d8d0c8]/60 shadow-[0_2px_16px_rgba(58,48,42,0.04)] z-10">
-            <div className="flex items-center space-x-6">
-                <span className="text-2xl font-headline italic text-[#c2652a]">4 Year Planner</span>
-                <div className="hidden lg:flex items-center space-x-4">
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 material-symbols-outlined" style={{ fontSize: '18px' }}>search</span>
-                        <input className="pl-10 pr-4 py-1.5 bg-surface-container-low border-outline-variant/40 rounded-full text-sm focus:ring-primary focus:border-primary w-64" placeholder="Search major requirements..." type="text" />
-                    </div>
-                </div>
-            </div>
-            <div className="flex items-center space-x-5">
-                <button className="p-2 text-stone-600 hover:text-[#c2652a] transition-colors">
-                    <span className="material-symbols-outlined" data-icon="notifications">notifications</span>
-                </button>
-                <button className="p-2 text-stone-600 hover:text-[#c2652a] transition-colors">
-                    <span className="material-symbols-outlined" data-icon="account_circle">account_circle</span>
-                </button>
-            </div>
-        </header>
-
         {/* Planner Canvas */}
         <div className="flex-1 flex overflow-hidden">
             {/* Left Side: 4-Year Grid */}
@@ -77,12 +119,13 @@ function StudentPlanner() {
                 <div className="max-w-6xl mx-auto">
                     <div className="flex justify-between items-end mb-8">
                         <div>
-                            <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap</h1>
-                            <p className="text-stone-500 font-body">{majorRequirements ? majorRequirements.name : 'Computer Science B.S.'} • Class of 2026</p>
+                            <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap {profile?.full_name ? `for ${profile.full_name}` : ''}</h1>
+                            <p className="text-stone-500 font-body">{profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of 2026</p>
                         </div>
                         <div className="flex space-x-4">
                             <div className="bg-surface-container-high px-4 py-2 rounded-lg text-xs font-bold text-on-surface flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-green-500"></span> 142 / 180 Units
+                                <span className="w-2 h-2 rounded-full bg-green-500"></span> 
+                                {userCourses.reduce((sum, c) => sum + (c.credits || 0), 0)} / 180 Units
                             </div>
                             <button className="p-2 bg-surface-container-high rounded-lg text-stone-600 hover:bg-stone-200 transition-colors">
                                 <span className="material-symbols-outlined">download</span>
@@ -90,149 +133,76 @@ function StudentPlanner() {
                         </div>
                     </div>
 
-                    {/* Year Grid (Iterative Content) */}
+                    {/* Year Grid (Dynamic Content) */}
                     <div className="space-y-12">
-                        {/* Year 1 */}
-                        <div>
-                            <h2 className="text-lg font-bold text-on-surface mb-4 pb-2 border-b border-outline-variant/30 flex justify-between items-center">
-                                Year 1: Freshman
-                                <span className="text-sm font-normal text-stone-400">2022 - 2023</span>
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                {/* Fall */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Fall</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">15 Units</span>
-                                    </div>
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 border-l-green-500">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">CS 101</span>
-                                            <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600">Intro to Programming</p>
-                                        <p className="text-[10px] text-stone-400">5 Units</p>
-                                    </div>
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 border-l-green-500">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">MATH 51</span>
-                                            <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600">Linear Algebra</p>
-                                        <p className="text-[10px] text-stone-400">5 Units</p>
-                                    </div>
-                                </div>
-                                {/* Winter */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Winter</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">14 Units</span>
-                                    </div>
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 border-l-green-500">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">CS 106B</span>
-                                            <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600">Data Abstractions</p>
-                                        <p className="text-[10px] text-stone-400">5 Units</p>
-                                    </div>
-                                </div>
-                                {/* Spring */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Spring</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">16 Units</span>
-                                    </div>
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 border-l-green-500">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">CS 107</span>
-                                            <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600">Computer Organization</p>
-                                        <p className="text-[10px] text-stone-400">5 Units</p>
-                                    </div>
-                                </div>
-                                {/* Summer */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Summer</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">0 Units</span>
-                                    </div>
-                                    <div className="border-2 border-dashed border-outline-variant/40 rounded-xl h-32 flex flex-col items-center justify-center text-stone-400">
-                                        <span className="material-symbols-outlined text-lg mb-1">add</span>
-                                        <span className="text-[10px] font-bold">ADD COURSE</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {YEARS.map((yearObj) => (
+                            <div key={yearObj.id}>
+                                <h2 className="text-lg font-bold text-on-surface mb-4 pb-2 border-b border-outline-variant/30 flex justify-between items-center">
+                                    {yearObj.title}
+                                    <span className="text-sm font-normal text-stone-400">
+                                        {2022 + yearObj.id - 1} - {2022 + yearObj.id}
+                                    </span>
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                    {TERMS.map((term) => {
+                                        const termCourses = userCourses.filter(
+                                            (c) => c.year === yearObj.id && c.term === term
+                                        );
+                                        const totalUnits = termCourses.reduce((sum, c) => sum + (c.credits || 0), 0);
 
-                        {/* Year 2 */}
-                        <div>
-                            <h2 className="text-lg font-bold text-on-surface mb-4 pb-2 border-b border-outline-variant/30 flex justify-between items-center">
-                                Year 2: Sophomore
-                                <span className="text-sm font-normal text-stone-400">2023 - 2024</span>
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                {/* Fall */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Fall</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">12 Units</span>
-                                    </div>
-                                    {/* Warning State */}
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-error/20 shadow-sm space-y-2 border-l-4 border-l-error">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">CS 110</span>
-                                            <span className="material-symbols-outlined text-error text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600 font-bold">Prereq not met</p>
-                                        <p className="text-[10px] text-stone-400">Requires CS 107</p>
-                                    </div>
-                                </div>
-                                {/* Winter */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Winter</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">15 Units</span>
-                                    </div>
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 border-l-primary">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">CS 161</span>
-                                            <span className="material-symbols-outlined text-primary text-sm">schedule</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600">Design of Algorithms</p>
-                                        <p className="text-[10px] text-stone-400">5 Units</p>
-                                    </div>
-                                </div>
-                                {/* Spring */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Spring</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">13 Units</span>
-                                    </div>
-                                    {/* Warning State (Yellow) */}
-                                    <div className="bg-surface-container-lowest p-3 rounded-xl border border-amber-200 shadow-sm space-y-2 border-l-4 border-l-amber-500">
-                                        <div className="flex justify-between items-start">
-                                            <span className="text-xs font-bold">PHIL 182</span>
-                                            <span className="material-symbols-outlined text-amber-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-                                        </div>
-                                        <p className="text-[11px] leading-tight text-stone-600 font-bold">Not offered</p>
-                                        <p className="text-[10px] text-stone-400">Spring 2024 Elective</p>
-                                    </div>
-                                </div>
-                                {/* Summer */}
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Summer</span>
-                                        <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">0 Units</span>
-                                    </div>
-                                    <div className="border-2 border-dashed border-outline-variant/40 rounded-xl h-32 flex flex-col items-center justify-center text-stone-400">
-                                        <span className="material-symbols-outlined text-lg mb-1">add</span>
-                                        <span className="text-[10px] font-bold">ADD COURSE</span>
-                                    </div>
+                                        return (
+                                            <div key={term} className="space-y-4">
+                                                <div className="flex justify-between items-center px-1">
+                                                    <span className="text-xs font-bold uppercase tracking-wider text-stone-400">
+                                                        {term}
+                                                    </span>
+                                                    <span className="text-[10px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">
+                                                        {totalUnits} Units
+                                                    </span>
+                                                </div>
+
+                                                {termCourses.map((course) => (
+                                                    <div 
+                                                        key={course.id} 
+                                                        className={`bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 ${course.status === 'completed' ? 'border-l-green-500' : 'border-l-primary'} group relative`}
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <span className="text-xs font-bold">{course.course_id}</span>
+                                                            <div className="flex items-center gap-1">
+                                                                {course.status === 'completed' ? (
+                                                                    <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                                                ) : (
+                                                                    <span className="material-symbols-outlined text-primary text-sm">schedule</span>
+                                                                )}
+                                                                <button 
+                                                                    onClick={() => handleRemoveCourse(course.id)}
+                                                                    className="opacity-0 group-hover:opacity-100 text-error hover:text-red-700 transition-opacity"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[11px] text-stone-400">{course.credits} Units</p>
+                                                    </div>
+                                                ))}
+
+                                                {/* Add Course Slot */}
+                                                <button 
+                                                    onClick={() => handleAddCourse(yearObj.id, term)}
+                                                    disabled={!selectedCourse}
+                                                    className={`w-full border-2 border-dashed rounded-xl h-24 flex flex-col items-center justify-center transition-all ${selectedCourse ? 'border-primary/40 text-primary hover:bg-primary/5 cursor-pointer' : 'border-outline-variant/20 text-stone-300 cursor-default'}`}
+                                                >
+                                                    <span className="material-symbols-outlined text-lg mb-1">{selectedCourse ? 'add_circle' : 'add'}</span>
+                                                    <span className="text-[10px] font-bold">
+                                                        {selectedCourse ? `ADD ${selectedCourse}` : 'SELECT COURSE'}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
             </section>
@@ -382,7 +352,11 @@ function StudentPlanner() {
                                         </h4>
                                         <div className="space-y-2">
                                             {majorRequirements.requirements.major_requirements.map((req, idx) => (
-                                                <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-outline-variant/40 flex items-start gap-3 cursor-grab hover:border-primary/40 transition-colors">
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => req.type === 'course' && setSelectedCourse(req.course_id)}
+                                                    className={`bg-white p-3 rounded-lg shadow-sm border flex items-start gap-3 cursor-pointer transition-colors ${selectedCourse === req.course_id ? 'border-primary bg-primary/5' : 'border-outline-variant/40 hover:border-primary/40'}`}
+                                                >
                                                     <div className="mt-0.5 text-stone-300">
                                                         <span className="material-symbols-outlined text-sm">drag_indicator</span>
                                                     </div>
@@ -405,7 +379,11 @@ function StudentPlanner() {
                                         </h4>
                                         <div className="space-y-2">
                                             {majorRequirements.requirements.core_requirements.map((req, idx) => (
-                                                <div key={idx} className="bg-white p-3 rounded-lg shadow-sm border border-outline-variant/40 flex items-start gap-3 cursor-grab hover:border-primary/40 transition-colors">
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => req.type === 'course' && setSelectedCourse(req.course_id)}
+                                                    className={`bg-white p-3 rounded-lg shadow-sm border flex items-start gap-3 cursor-pointer transition-colors ${selectedCourse === req.course_id ? 'border-primary bg-primary/5' : 'border-outline-variant/40 hover:border-primary/40'}`}
+                                                >
                                                     <div className="mt-0.5 text-stone-300">
                                                         <span className="material-symbols-outlined text-sm">drag_indicator</span>
                                                     </div>
