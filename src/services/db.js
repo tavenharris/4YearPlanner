@@ -106,6 +106,19 @@ export async function saveUserCourse(courseData) {
     return data;
 }
 
+export async function updateUserCourse(courseRecordId, updates) {
+    const { data, error } = await supabase
+        .from('user_courses')
+        .update(updates)
+        .eq('id', courseRecordId)
+        .select();
+    if (error) {
+        console.error('Error updating user course:', error);
+        return null;
+    }
+    return data;
+}
+
 export async function deleteUserCourse(courseRecordId) {
     const { data, error } = await supabase
         .from('user_courses')

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, deleteUserCourse } from '../../services/db';
+import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, updateUserCourse, deleteUserCourse } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
 
 const YEARS = [
@@ -9,6 +9,11 @@ const YEARS = [
   { id: 4, title: 'Year 4: Senior' },
 ];
 const TERMS = ['Fall', 'Winter', 'Spring', 'Summer'];
+const COURSE_STATUSES = [
+  { id: 'planned', label: 'Planned', icon: 'calendar_today', accent: 'border-l-primary', iconClass: 'text-primary' },
+  { id: 'in_progress', label: 'In Progress', icon: 'timelapse', accent: 'border-l-amber-500', iconClass: 'text-amber-500' },
+  { id: 'completed', label: 'Completed', icon: 'check_circle', accent: 'border-l-green-500', iconClass: 'text-green-500', filled: true },
+];
 
 function StudentPlanner() {
   const [user, setUser] = useState(null);
@@ -48,6 +53,15 @@ function StudentPlanner() {
   const handleRemoveCourse = async (courseRecordId) => {
     await deleteUserCourse(courseRecordId);
     setUserCourses(prev => prev.filter(c => c.id !== courseRecordId));
+  };
+
+  const handleUpdateCourseStatus = async (courseRecordId, status) => {
+    const updated = await updateUserCourse(courseRecordId, { status });
+    if (updated && updated.length > 0) {
+      setUserCourses(prev =>
+        prev.map(course => (course.id === courseRecordId ? updated[0] : course))
+      );
+    }
   };
 
   // Fetch User and Profile Data
@@ -162,18 +176,27 @@ function StudentPlanner() {
                                                 </div>
 
                                                 {termCourses.map((course) => (
-                                                    <div 
-                                                        key={course.id} 
-                                                        className={`bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-2 border-l-4 ${course.status === 'completed' ? 'border-l-green-500' : 'border-l-primary'} group relative`}
+                                                    <div
+                                                        key={course.id}
+                                                        className={`bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/40 shadow-sm space-y-3 border-l-4 ${
+                                                            COURSE_STATUSES.find(status => status.id === course.status)?.accent || 'border-l-primary'
+                                                        } group relative`}
                                                     >
                                                         <div className="flex justify-between items-start">
                                                             <span className="text-xs font-bold">{course.course_id}</span>
                                                             <div className="flex items-center gap-1">
-                                                                {course.status === 'completed' ? (
-                                                                    <span className="material-symbols-outlined text-green-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                                                ) : (
-                                                                    <span className="material-symbols-outlined text-primary text-sm">schedule</span>
-                                                                )}
+                                                                {(() => {
+                                                                    const statusConfig = COURSE_STATUSES.find(status => status.id === course.status) || COURSE_STATUSES[0];
+                                                                    return (
+                                                                        <span
+                                                                            className={`material-symbols-outlined text-sm ${statusConfig.iconClass}`}
+                                                                            style={statusConfig.filled ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                                                                            title={statusConfig.label}
+                                                                        >
+                                                                            {statusConfig.icon}
+                                                                        </span>
+                                                                    );
+                                                                })()}
                                                                 <button 
                                                                     onClick={() => handleRemoveCourse(course.id)}
                                                                     className="opacity-0 group-hover:opacity-100 text-error hover:text-red-700 transition-opacity"
@@ -181,6 +204,21 @@ function StudentPlanner() {
                                                                     <span className="material-symbols-outlined text-sm">delete</span>
                                                                 </button>
                                                             </div>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {COURSE_STATUSES.map((status) => (
+                                                                <button
+                                                                    key={status.id}
+                                                                    onClick={() => handleUpdateCourseStatus(course.id, status.id)}
+                                                                    className={`px-2 py-1 rounded-full text-[10px] font-semibold border transition-colors ${
+                                                                        course.status === status.id
+                                                                            ? 'border-current bg-white text-stone-900'
+                                                                            : 'border-outline-variant/50 text-stone-500 hover:text-stone-700 hover:border-stone-300'
+                                                                    }`}
+                                                                >
+                                                                    {status.label}
+                                                                </button>
+                                                            ))}
                                                         </div>
                                                         <p className="text-[11px] text-stone-400">{course.credits} Units</p>
                                                     </div>
