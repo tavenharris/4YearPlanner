@@ -11,9 +11,10 @@ const MAJOR_OPTIONS = [
 ];
 
 const MINOR_OPTIONS = ['None', 'Math', 'Philosophy', 'Business'];
-const TERM_OPTIONS = [
-  { value: 'Fall 2024', icon: 'energy_savings_leaf' },
-  { value: 'Spring 2025', icon: 'ac_unit' },
+const QUARTER_OPTIONS = [
+  { value: 'Fall', icon: 'energy_savings_leaf' },
+  { value: 'Winter', icon: 'ac_unit' },
+  { value: 'Spring', icon: 'local_florist' },
 ];
 
 function StudentSettings() {
@@ -28,7 +29,8 @@ function StudentSettings() {
     full_name: '',
     major: 'CSCI',
     minor: 'None',
-    starting_term: 'Fall 2024',
+    starting_quarter: 'Fall',
+    starting_year: '2024',
     avatar_url: '',
   });
 
@@ -43,13 +45,15 @@ function StudentSettings() {
 
       const profile = await getUserProfile(session.user.id);
       const userMetadata = session.user.user_metadata || {};
+      const startingTermParts = (profile?.starting_term || 'Fall 2024').split(' ');
 
       setUserId(session.user.id);
       setForm({
         full_name: profile?.full_name || userMetadata.full_name || userMetadata.name || '',
         major: profile?.major || 'CSCI',
         minor: profile?.minor || 'None',
-        starting_term: profile?.starting_term || 'Fall 2024',
+        starting_quarter: startingTermParts[0] || 'Fall',
+        starting_year: startingTermParts[1] || '2024',
         avatar_url: profile?.avatar_url || userMetadata.avatar_url || userMetadata.picture || '',
       });
       setLoading(false);
@@ -78,10 +82,10 @@ function StudentSettings() {
     }));
   };
 
-  const handleTermChange = (term) => {
+  const handleQuarterChange = (quarter) => {
     setForm((currentForm) => ({
       ...currentForm,
-      starting_term: term,
+      starting_quarter: quarter,
     }));
   };
 
@@ -96,8 +100,7 @@ function StudentSettings() {
       full_name: trimmedName,
       major: form.major,
       minor: form.minor,
-      starting_term: form.starting_term,
-      avatar_url: form.avatar_url || null,
+      starting_term: `${form.starting_quarter} ${form.starting_year}`,
     };
 
     const savedProfile = await saveUserProfile(userId, profilePayload);
@@ -111,6 +114,7 @@ function StudentSettings() {
     const { error: updateError } = await supabase.auth.updateUser({
       data: {
         full_name: trimmedName,
+        avatar_url: form.avatar_url || null,
       },
     });
 
@@ -253,11 +257,28 @@ function StudentSettings() {
               </div>
             </div>
 
+            <div className="grid gap-8 md:grid-cols-2">
+              <div className="space-y-3">
+                <label className="ml-1 block font-['Manrope'] text-sm font-bold text-[#504840]">
+                  Starting Year
+                </label>
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  className="w-full rounded-xl border border-[#d8d0c8] bg-white px-4 py-4 font-['Manrope'] text-on-surface outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  onChange={handleChange('starting_year')}
+                  placeholder="e.g. 2024"
+                  value={form.starting_year}
+                />
+              </div>
+            </div>
+
             <div className="space-y-4">
               <h2 className="font-['EB_Garamond'] text-3xl text-on-surface">Starting Term</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {TERM_OPTIONS.map((option) => {
-                  const isSelected = form.starting_term === option.value;
+              <div className="grid gap-4 sm:grid-cols-3">
+                {QUARTER_OPTIONS.map((option) => {
+                  const isSelected = form.starting_quarter === option.value;
 
                   return (
                     <button
@@ -267,7 +288,7 @@ function StudentSettings() {
                           ? 'border-primary bg-primary text-white shadow-md'
                           : 'border-[#d8d0c8] bg-white text-stone-700 hover:border-primary/40'
                       }`}
-                      onClick={() => handleTermChange(option.value)}
+                      onClick={() => handleQuarterChange(option.value)}
                       type="button"
                     >
                       <span className="material-symbols-outlined mb-3 block">{option.icon}</span>
@@ -345,7 +366,7 @@ function StudentSettings() {
               </div>
               <div className="flex items-start justify-between gap-4">
                 <span className="text-stone-500">Starting Term</span>
-                <span className="text-right font-semibold text-on-surface">{form.starting_term}</span>
+                <span className="text-right font-semibold text-on-surface">{`${form.starting_quarter} ${form.starting_year}`}</span>
               </div>
             </div>
           </section>

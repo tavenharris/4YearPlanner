@@ -81,7 +81,6 @@ function StudentOnboarding() {
 
       await saveUserProfile(session.user.id, {
         full_name: userMetadata.full_name || userMetadata.name || session.user.email,
-        avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
         major: major,
         minor: minor,
         starting_term: term

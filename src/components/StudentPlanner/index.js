@@ -28,6 +28,10 @@ function StudentPlanner() {
   const [majorRequirements, setMajorRequirements] = useState(null);
   const [activeTab, setActiveTab] = useState('search'); // 'search' or 'requirements'
 
+  const startingYearMatch = profile?.starting_term?.match(/\d{4}/);
+  const startYear = startingYearMatch ? parseInt(startingYearMatch[0], 10) : 2024;
+  const classYear = startYear + 4;
+
   const handleAddCourse = async (year, term) => {
     if (!user || !selectedCourse) return;
     
@@ -134,7 +138,7 @@ function StudentPlanner() {
                     <div className="flex justify-between items-end mb-8">
                         <div>
                             <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap {profile?.full_name ? `for ${profile.full_name}` : ''}</h1>
-                            <p className="text-stone-500 font-body">{profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of 2026</p>
+                            <p className="text-stone-500 font-body">{profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of {classYear}</p>
                         </div>
                         <div className="flex space-x-4">
                             <div className="bg-surface-container-high px-4 py-2 rounded-lg text-xs font-bold text-on-surface flex items-center gap-2">
@@ -154,7 +158,7 @@ function StudentPlanner() {
                                 <h2 className="text-lg font-bold text-on-surface mb-4 pb-2 border-b border-outline-variant/30 flex justify-between items-center">
                                     {yearObj.title}
                                     <span className="text-sm font-normal text-stone-400">
-                                        {2022 + yearObj.id - 1} - {2022 + yearObj.id}
+                                        {startYear + yearObj.id - 1} - {startYear + yearObj.id}
                                     </span>
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
