@@ -52,6 +52,45 @@ export async function searchCourses(query) {
     return data;
 }
 
+export async function getAllMajors() {
+    const { data, error } = await supabase
+        .from('majors')
+        .select('*');
+        
+    if (error) {
+        console.error('Error fetching all majors:', error);
+        return [];
+    }
+    return data;
+}
+
+export async function saveMajor(majorId, majorData) {
+    const { data, error } = await supabase
+        .from('majors')
+        .upsert({ id: majorId, ...majorData })
+        .select();
+        
+    if (error) {
+        console.error('Error saving major:', error);
+        return null;
+    }
+    return data;
+}
+
+export async function deleteMajor(majorId) {
+    const { data, error } = await supabase
+        .from('majors')
+        .delete()
+        .eq('id', majorId)
+        .select();
+        
+    if (error) {
+        console.error('Error deleting major:', error);
+        return null;
+    }
+    return data;
+}
+
 export async function getMajorRequirements(majorId) {
     const { data, error } = await supabase
         .from('majors')

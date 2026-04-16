@@ -9,6 +9,7 @@ import StudentNotifications from './components/StudentNotifications';
 import StudentOnboarding from './components/StudentOnboarding';
 import StudentPlanner from './components/StudentPlanner';
 import StudentSettings from './components/StudentSettings';
+import AdminMajors from './components/AdminMajors';
 import { getUserProfile } from './services/db';
 import { supabase } from './services/supabaseClient';
 import { MAJOR_LABELS } from './constants/academic';
@@ -18,6 +19,7 @@ function AppContent() {
   const isSetupRoute = location.pathname === '/student-onboarding';
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
 
   useEffect(() => {
     async function syncUser(session) {
@@ -26,11 +28,13 @@ function AppContent() {
 
       if (!currentUser) {
         setProfile(null);
+        setAuthLoaded(true);
         return;
       }
 
       const userProfile = await getUserProfile(currentUser.id);
       setProfile(userProfile || null);
+      setAuthLoaded(true);
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -68,10 +72,13 @@ function AppContent() {
     return details.join(' • ') || 'Student';
   }, [profile?.major, profile?.starting_term]);
 
+  const isAdmin = user?.email === 'tjharris@scu.edu';
+
   const navLinks = [
     { to: "/student-planner", icon: "calendar_month", label: "Course Plan" },
     { to: "/requirements-progress", icon: "checklist", label: "Requirements" },
-    { to: "/settings", icon: "settings", label: "Settings" }
+    { to: "/settings", icon: "settings", label: "Settings" },
+    ...(isAdmin ? [{ to: "/admin-majors", icon: "admin_panel_settings", label: "Admin: Majors" }] : [])
   ];
 
   return (
@@ -135,6 +142,7 @@ function AppContent() {
                 <Route path="/student-notifications" element={<StudentNotifications />} />
                 <Route path="/student-onboarding" element={<StudentOnboarding />} />
                 <Route path="/student-planner" element={<StudentPlanner />} />
+                <Route path="/admin-majors" element={!authLoaded ? null : isAdmin ? <AdminMajors /> : <Navigate to="/student-planner" replace />} />
             </Routes>
 
             {/* Mobile Nav Bar */}
