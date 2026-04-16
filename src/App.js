@@ -130,7 +130,7 @@ function AppContent() {
         {/* Main Content Canvas */}
         <main className={`flex-1 ${!isSetupRoute ? 'md:ml-64 pb-20 md:pb-0' : ''} bg-background min-h-screen`}>
             <Routes>
-                <Route path="/" element={<Navigate to="/student-onboarding" />} />
+                <Route path="/" element={<Navigate to={{ pathname: "/student-onboarding", hash: location.hash, search: location.search }} replace />} />
                 <Route path="/advisor-roster" element={<AdvisorRoster />} />
                 <Route path="/requirements-progress" element={<RequirementsProgress />} />
                 <Route path="/settings" element={<StudentSettings />} />

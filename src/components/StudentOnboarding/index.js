@@ -15,6 +15,7 @@ function StudentOnboarding() {
 
   useEffect(() => {
     async function checkUser(session) {
+      console.log("Checking user session:", session);
       if (!session?.user) {
         setStep(1);
         setIsCheckingSession(false);
@@ -22,11 +23,9 @@ function StudentOnboarding() {
       }
 
       const profile = await getUserProfile(session.user.id);
+      console.log("Found profile:", profile);
 
       if (profile && profile.major) {
-         setMajor(profile.major);
-         if (profile.minor) setMinor(profile.minor);
-         if (profile.starting_term) setTerm(profile.starting_term);
          navigate('/student-planner', { replace: true });
          return;
       }
@@ -69,7 +68,7 @@ function StudentOnboarding() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: window.location.origin + '/student-onboarding'
       }
     });
     if (error) console.error("Error logging in:", error.message);
