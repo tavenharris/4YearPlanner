@@ -28,6 +28,8 @@ node scripts/upload_to_supabase.js
 
 **How to run it:**
 
+REMINDER: You will need a .json file containing the new evaluations data. It need to be called `aggregate_evals.json`
+
 *Option 1: Update using the default file in the project root:*
 ```bash
 node scripts/update_evals.js
