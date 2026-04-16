@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
 import { saveUserProfile, getUserProfile } from '../../services/db';
+import { MAJOR_OPTIONS, MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
 
 function StudentOnboarding() {
   const [step, setStep] = useState(1);
@@ -81,8 +82,8 @@ function StudentOnboarding() {
 
       await saveUserProfile(session.user.id, {
         full_name: userMetadata.full_name || userMetadata.name || session.user.email,
-        major: major,
-        minor: minor,
+        major: normalizeMajor(major),
+        minor: normalizeMinor(minor),
         starting_term: term
       });
       navigate('/student-planner');
@@ -167,10 +168,11 @@ function StudentOnboarding() {
                                             onChange={(e) => setMajor(e.target.value)}
                                             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-4 px-4 focus:ring-primary focus:border-primary appearance-none text-on-surface cursor-pointer transition-all"
                                         >
-                                            <option value="CSCI">Computer Science</option>
-                                            <option value="MATH">Mathematics</option>
-                                            <option value="PHYS">Physics</option>
-                                            <option value="ARCH">Architecture</option>
+                                            {MAJOR_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
                                         </select>
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-outline">
                                             <span className="material-symbols-outlined">expand_more</span>
@@ -185,10 +187,11 @@ function StudentOnboarding() {
                                             onChange={(e) => setMinor(e.target.value)}
                                             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-4 px-4 focus:ring-primary focus:border-primary appearance-none text-on-surface cursor-pointer transition-all"
                                         >
-                                            <option>None</option>
-                                            <option>Math</option>
-                                            <option>Philosophy</option>
-                                            <option>Business</option>
+                                            {MINOR_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
                                         </select>
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-outline">
                                             <span className="material-symbols-outlined">expand_more</span>

@@ -11,10 +11,7 @@ import StudentPlanner from './components/StudentPlanner';
 import StudentSettings from './components/StudentSettings';
 import { getUserProfile } from './services/db';
 import { supabase } from './services/supabaseClient';
-
-const MAJOR_LABELS = {
-  CSCI: 'Computer Science',
-};
+import { MAJOR_LABELS } from './constants/academic';
 
 function AppContent() {
   const location = useLocation();

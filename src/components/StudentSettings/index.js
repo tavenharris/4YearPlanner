@@ -2,15 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUserProfile, saveUserProfile } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
+import { MAJOR_OPTIONS, MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
 
-const MAJOR_OPTIONS = [
-  { value: 'CSCI', label: 'Computer Science' },
-  { value: 'MATH', label: 'Mathematics' },
-  { value: 'PHYS', label: 'Physics' },
-  { value: 'ARCH', label: 'Architecture' },
-];
-
-const MINOR_OPTIONS = ['None', 'Math', 'Philosophy', 'Business'];
 const QUARTER_OPTIONS = [
   { value: 'Fall', icon: 'energy_savings_leaf' },
   { value: 'Winter', icon: 'ac_unit' },
@@ -50,8 +43,8 @@ function StudentSettings() {
       setUserId(session.user.id);
       setForm({
         full_name: profile?.full_name || userMetadata.full_name || userMetadata.name || '',
-        major: profile?.major || 'CSCI',
-        minor: profile?.minor || 'None',
+        major: normalizeMajor(profile?.major),
+        minor: normalizeMinor(profile?.minor),
         starting_quarter: startingTermParts[0] || 'Fall',
         starting_year: startingTermParts[1] || '2024',
         avatar_url: profile?.avatar_url || userMetadata.avatar_url || userMetadata.picture || '',
@@ -245,8 +238,8 @@ function StudentSettings() {
                     value={form.minor}
                   >
                     {MINOR_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
@@ -362,7 +355,9 @@ function StudentSettings() {
               </div>
               <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8]/60 pb-4">
                 <span className="text-stone-500">Minor</span>
-                <span className="text-right font-semibold text-on-surface">{form.minor}</span>
+                <span className="text-right font-semibold text-on-surface">
+                  {MINOR_OPTIONS.find((option) => option.value === form.minor)?.label || form.minor}
+                </span>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <span className="text-stone-500">Starting Term</span>

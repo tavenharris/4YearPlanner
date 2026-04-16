@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, updateUserCourse, deleteUserCourse } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
+import { MAJOR_LABELS } from '../../constants/academic';
 
 const YEARS = [
   { id: 1, title: 'Year 1: Freshman' },
@@ -138,7 +139,7 @@ function StudentPlanner() {
                     <div className="flex justify-between items-end mb-8">
                         <div>
                             <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap {profile?.full_name ? `for ${profile.full_name}` : ''}</h1>
-                            <p className="text-stone-500 font-body">{profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of {classYear}</p>
+                            <p className="text-stone-500 font-body">{MAJOR_LABELS[profile?.major] || profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of {classYear}</p>
                         </div>
                         <div className="flex space-x-4">
                             <div className="bg-surface-container-high px-4 py-2 rounded-lg text-xs font-bold text-on-surface flex items-center gap-2">
