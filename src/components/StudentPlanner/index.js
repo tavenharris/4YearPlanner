@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, updateUserCourse, deleteUserCourse } from '../../services/db';
+import { searchCourses, getCourseData, getMajorRequirements, getUserProfile, getUserCourses, saveUserCourse, updateUserCourse, deleteUserCourse, getAllMajorsOptions } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
-import { MAJOR_LABELS } from '../../constants/academic';
 
 const YEARS = [
   { id: 1, title: 'Year 1: Freshman' },
@@ -27,6 +26,7 @@ function StudentPlanner() {
   const [courseData, setCourseData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [majorRequirements, setMajorRequirements] = useState(null);
+  const [majorOptions, setMajorOptions] = useState([]);
   const [activeTab, setActiveTab] = useState('search'); // 'search' or 'requirements'
 
   const startingYearMatch = profile?.starting_term?.match(/\d{4}/);
@@ -72,6 +72,9 @@ function StudentPlanner() {
   // Fetch User and Profile Data
   useEffect(() => {
     async function loadUserData() {
+      const options = await getAllMajorsOptions();
+      setMajorOptions(options);
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -139,7 +142,7 @@ function StudentPlanner() {
                     <div className="flex justify-between items-end mb-8">
                         <div>
                             <h1 className="text-4xl font-headline text-on-background mb-2">Degree Roadmap {profile?.full_name ? `for ${profile.full_name}` : ''}</h1>
-                            <p className="text-stone-500 font-body">{MAJOR_LABELS[profile?.major] || profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of {classYear}</p>
+                            <p className="text-stone-500 font-body">{majorOptions.find(o => o.value === profile?.major)?.label || profile?.major || (majorRequirements ? majorRequirements.name : 'Computer Science B.S.')} • Class of {classYear}</p>
                         </div>
                         <div className="flex space-x-4">
                             <div className="bg-surface-container-high px-4 py-2 rounded-lg text-xs font-bold text-on-surface flex items-center gap-2">

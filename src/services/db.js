@@ -52,6 +52,19 @@ export async function searchCourses(query) {
     return data;
 }
 
+export async function getAllMajorsOptions() {
+    const { data, error } = await supabase
+        .from('majors')
+        .select('id, name')
+        .order('name');
+        
+    if (error) {
+        console.error('Error fetching all major options:', error);
+        return [];
+    }
+    return data.map(major => ({ value: major.id, label: major.name }));
+}
+
 export async function getAllMajors() {
     const { data, error } = await supabase
         .from('majors')

@@ -10,9 +10,8 @@ import StudentOnboarding from './components/StudentOnboarding';
 import StudentPlanner from './components/StudentPlanner';
 import StudentSettings from './components/StudentSettings';
 import AdminMajors from './components/AdminMajors';
-import { getUserProfile } from './services/db';
+import { getUserProfile, getAllMajorsOptions } from './services/db';
 import { supabase } from './services/supabaseClient';
-import { MAJOR_LABELS } from './constants/academic';
 
 function AppContent() {
   const location = useLocation();
@@ -20,11 +19,15 @@ function AppContent() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [majorOptions, setMajorOptions] = useState([]);
 
   useEffect(() => {
     async function syncUser(session) {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+
+      const options = await getAllMajorsOptions();
+      setMajorOptions(options);
 
       if (!currentUser) {
         setProfile(null);
@@ -64,13 +67,13 @@ function AppContent() {
   const avatarUrl = profile?.avatar_url || userMetadata.avatar_url || userMetadata.picture || null;
   const subtitle = useMemo(() => {
     const details = [];
-    const majorLabel = MAJOR_LABELS[profile?.major] || profile?.major;
+    const majorLabel = majorOptions.find(o => o.value === profile?.major)?.label || profile?.major;
 
     if (majorLabel) details.push(majorLabel);
     if (profile?.starting_term) details.push(profile.starting_term);
 
     return details.join(' • ') || 'Student';
-  }, [profile?.major, profile?.starting_term]);
+  }, [profile?.major, profile?.starting_term, majorOptions]);
 
   const isAdmin = user?.email === 'tjharris@scu.edu';
 

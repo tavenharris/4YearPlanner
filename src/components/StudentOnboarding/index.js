@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
-import { saveUserProfile, getUserProfile } from '../../services/db';
-import { MAJOR_OPTIONS, MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
+import { saveUserProfile, getUserProfile, getAllMajorsOptions } from '../../services/db';
+import { MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
 
 function StudentOnboarding() {
   const [step, setStep] = useState(1);
@@ -10,13 +10,18 @@ function StudentOnboarding() {
   const navigate = useNavigate();
 
   // For step 2 form
-  const [major, setMajor] = useState('CSCI');
+  const [major, setMajor] = useState('');
   const [minor, setMinor] = useState('None');
   const [term, setTerm] = useState('Fall 2024');
+  const [majorOptions, setMajorOptions] = useState([]);
 
   useEffect(() => {
     async function checkUser(session) {
       console.log("Checking user session:", session);
+      const options = await getAllMajorsOptions();
+      setMajorOptions(options);
+      if (options.length > 0) setMajor(options[0].value);
+
       if (!session?.user) {
         setStep(1);
         setIsCheckingSession(false);
@@ -82,7 +87,7 @@ function StudentOnboarding() {
 
       await saveUserProfile(session.user.id, {
         full_name: userMetadata.full_name || userMetadata.name || session.user.email,
-        major: normalizeMajor(major),
+        major: normalizeMajor(major, majorOptions),
         minor: normalizeMinor(minor),
         starting_term: term
       });
@@ -168,7 +173,7 @@ function StudentOnboarding() {
                                             onChange={(e) => setMajor(e.target.value)}
                                             className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-4 px-4 focus:ring-primary focus:border-primary appearance-none text-on-surface cursor-pointer transition-all"
                                         >
-                                            {MAJOR_OPTIONS.map((option) => (
+                                            {majorOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
                                                     {option.label}
                                                 </option>

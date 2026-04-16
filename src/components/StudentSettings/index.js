@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getUserProfile, saveUserProfile } from '../../services/db';
+import { getUserProfile, saveUserProfile, getAllMajorsOptions } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
-import { MAJOR_OPTIONS, MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
+import { MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
 
 const QUARTER_OPTIONS = [
   { value: 'Fall', icon: 'energy_savings_leaf' },
@@ -16,6 +16,7 @@ function StudentSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [majorOptions, setMajorOptions] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -36,6 +37,9 @@ function StudentSettings() {
         return;
       }
 
+      const options = await getAllMajorsOptions();
+      setMajorOptions(options);
+
       const profile = await getUserProfile(session.user.id);
       const userMetadata = session.user.user_metadata || {};
       const startingTermParts = (profile?.starting_term || 'Fall 2024').split(' ');
@@ -43,7 +47,7 @@ function StudentSettings() {
       setUserId(session.user.id);
       setForm({
         full_name: profile?.full_name || userMetadata.full_name || userMetadata.name || '',
-        major: normalizeMajor(profile?.major),
+        major: normalizeMajor(profile?.major, options),
         minor: normalizeMinor(profile?.minor),
         starting_quarter: startingTermParts[0] || 'Fall',
         starting_year: startingTermParts[1] || '2024',
@@ -215,7 +219,7 @@ function StudentSettings() {
                     onChange={handleChange('major')}
                     value={form.major}
                   >
-                    {MAJOR_OPTIONS.map((option) => (
+                    {majorOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -350,7 +354,7 @@ function StudentSettings() {
               <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8]/60 pb-4">
                 <span className="text-stone-500">Major</span>
                 <span className="text-right font-semibold text-on-surface">
-                  {MAJOR_OPTIONS.find((option) => option.value === form.major)?.label || form.major}
+                  {majorOptions.find((option) => option.value === form.major)?.label || form.major}
                 </span>
               </div>
               <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8]/60 pb-4">
