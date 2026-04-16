@@ -191,3 +191,29 @@ export async function deleteUserCourse(courseRecordId) {
     }
     return data;
 }
+
+export async function deleteUserAccount(userId) {
+    // Delete user courses
+    const { error: coursesError } = await supabase
+        .from('user_courses')
+        .delete()
+        .eq('user_id', userId);
+        
+    if (coursesError) {
+        console.error('Error deleting user courses:', coursesError);
+        return false;
+    }
+
+    // Delete user profile
+    const { error: profileError } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId);
+        
+    if (profileError) {
+        console.error('Error deleting user profile:', profileError);
+        return false;
+    }
+    
+    return true;
+}

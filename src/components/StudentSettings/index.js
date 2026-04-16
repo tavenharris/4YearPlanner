@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getUserProfile, saveUserProfile, getAllMajorsOptions } from '../../services/db';
+import { getUserProfile, saveUserProfile, getAllMajorsOptions, deleteUserAccount } from '../../services/db';
 import { supabase } from '../../services/supabaseClient';
 import { MINOR_OPTIONS, normalizeMajor, normalizeMinor } from '../../constants/academic';
 
@@ -16,6 +16,9 @@ function StudentSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteConfirmCountdown, setDeleteConfirmCountdown] = useState(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [majorOptions, setMajorOptions] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -137,6 +140,47 @@ function StudentSettings() {
       return;
     }
 
+    navigate('/student-onboarding');
+  };
+
+  useEffect(() => {
+    let timer;
+    if (showDeleteConfirm && deleteConfirmCountdown > 0) {
+      timer = setTimeout(() => setDeleteConfirmCountdown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [showDeleteConfirm, deleteConfirmCountdown]);
+
+  const handleInitiateDelete = () => {
+    setShowDeleteConfirm(true);
+    setDeleteConfirmCountdown(5);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setDeleteConfirmCountdown(0);
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeletingAccount(true);
+    setError('');
+    
+    const success = await deleteUserAccount(userId);
+    if (!success) {
+      setError('Failed to delete account data. Please try again.');
+      setIsDeletingAccount(false);
+      setShowDeleteConfirm(false);
+      return;
+    }
+
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      setIsDeletingAccount(false);
+      setShowDeleteConfirm(false);
+      return;
+    }
+    
     navigate('/student-onboarding');
   };
 
@@ -327,6 +371,54 @@ function StudentSettings() {
               </button>
             </div>
           </form>
+
+          <div className="mt-16 border-t border-[#d8d0c8]/60 pt-10">
+            <h2 className="font-['EB_Garamond'] text-3xl text-[#8c3c3c]">Danger Zone</h2>
+            <p className="mt-2 font-['Manrope'] text-sm text-stone-600">
+              Permanently delete your account and all associated data. This action cannot be undone.
+            </p>
+            
+            {!showDeleteConfirm ? (
+              <button
+                type="button"
+                onClick={handleInitiateDelete}
+                className="mt-6 rounded-xl border border-[#d18b8b] bg-white px-6 py-4 font-['Manrope'] text-sm font-bold text-[#8c3c3c] transition-colors hover:bg-[#fff1f1]"
+              >
+                Delete Account
+              </button>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-[#d18b8b] bg-[#fff1f1] p-6">
+                <p className="font-['Manrope'] text-sm font-bold text-[#8c3c3c]">
+                  Are you absolutely sure?
+                </p>
+                <p className="mt-1 font-['Manrope'] text-sm text-[#8c3c3c]/80">
+                  This will permanently delete your profile and all your planned courses.
+                </p>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    disabled={deleteConfirmCountdown > 0 || isDeletingAccount}
+                    onClick={handleConfirmDelete}
+                    className="rounded-xl bg-[#8c3c3c] px-6 py-4 font-['Manrope'] text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isDeletingAccount 
+                      ? 'Deleting...' 
+                      : deleteConfirmCountdown > 0 
+                        ? `Yes, delete my account (${deleteConfirmCountdown})` 
+                        : 'Yes, delete my account'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingAccount}
+                    onClick={handleCancelDelete}
+                    className="rounded-xl border border-[#d8d0c8] bg-white px-6 py-4 font-['Manrope'] text-sm font-bold text-stone-700 transition-colors hover:bg-[#f6ede2] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         <aside className="space-y-6">

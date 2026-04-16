@@ -31,7 +31,7 @@ function StudentOnboarding() {
       const profile = await getUserProfile(session.user.id);
       console.log("Found profile:", profile);
 
-      if (profile && profile.major) {
+      if (profile && profile.starting_term) {
          navigate('/student-planner', { replace: true });
          return;
       }
