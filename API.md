@@ -33,6 +33,8 @@ Retrieves detailed information for a specific class ID.
   - `id=[string]` where `id` is the class identifier (e.g., `CSCI101`). The API automatically converts the ID to uppercase for database lookup.
 - **Response Format:** JSON
 
+Example: `/api/classes/MATH11`
+
 **Success Response (200 OK):**
 ```json
 {
