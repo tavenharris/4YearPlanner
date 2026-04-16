@@ -30,11 +30,19 @@ export async function getProfessorData(name) {
 
 export async function searchCourses(query) {
     if (!query) return [];
-    // Basic search on course ID containing the query
+    
+    // Format the query to handle missing spaces (e.g., 'math11' -> 'math%11')
+    // and multiple spaces (e.g., 'math   11' -> 'math%11')
+    const formattedQuery = query
+        .replace(/\s+/g, '%') // Replace any spaces with wildcard
+        .replace(/([a-zA-Z])(\d)/g, '$1%$2') // Add wildcard between letter and number
+        .replace(/(\d)([a-zA-Z])/g, '$1%$2'); // Add wildcard between number and letter
+
+    // Basic search on course ID containing the formatted query
     const { data, error } = await supabase
         .from('courses')
         .select('id')
-        .ilike('id', `%${query}%`)
+        .ilike('id', `%${formattedQuery}%`)
         .limit(10);
         
     if (error) {

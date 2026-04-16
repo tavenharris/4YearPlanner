@@ -105,7 +105,7 @@ function StudentPlanner() {
     const timer = setTimeout(async () => {
       if (searchQuery.length > 1) {
         setLoading(true);
-        const results = await searchCourses(searchQuery.toUpperCase());
+        const results = await searchCourses(searchQuery);
         setSearchResults(results || []);
         setLoading(false);
       } else {
