@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import { getMajorRequirements, getUserProfile, getUserCourses } from '../../services/db';
+import { getMajorRequirements, getMinorRequirements, getUserProfile, getUserCourses } from '../../services/db';
 
 function RequirementsProgress() {
   const [profile, setProfile] = useState(null);
   const [userCourses, setUserCourses] = useState([]);
   const [majorRequirements, setMajorRequirements] = useState(null);
+  const [minorRequirements, setMinorRequirements] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,6 +19,11 @@ function RequirementsProgress() {
         
         const data = await getMajorRequirements(userProfile?.major || 'CSCI');
         setMajorRequirements(data);
+        
+        if (userProfile?.minor && userProfile.minor !== 'None') {
+          const minorData = await getMinorRequirements(userProfile.minor);
+          setMinorRequirements(minorData);
+        }
         
         const courses = await getUserCourses(session.user.id);
         if (courses) setUserCourses(courses);
@@ -67,6 +73,20 @@ function RequirementsProgress() {
   const genEdPercentage = genEdTotal > 0 ? (genEdCompletedOrPlanned / genEdTotal) * 100 : 0;
   const genEdMet = genEdPercentage === 100;
 
+  const minorReqs = minorRequirements?.requirements?.minor_requirements || [];
+  const minorTotal = minorReqs.length;
+  const minorCompletedOrPlanned = minorReqs.filter(req => {
+     if (req.type === 'choose_n' && req.options) {
+        const metCount = req.options.filter(opt => getCourseStatus(opt) !== 'remaining').length;
+        return metCount >= req.courses_needed;
+     } else if (req.type === 'course') {
+        return getCourseStatus(req.course_id) !== 'remaining';
+     }
+     return false;
+  }).length;
+  const minorPercentage = minorTotal > 0 ? (minorCompletedOrPlanned / minorTotal) * 100 : 0;
+  const minorMet = minorTotal > 0 && minorPercentage === 100;
+
   const electiveGroups = majorRequirements?.requirements?.major_requirements?.filter(r => r.type === 'elective_group') || [];
   const electivesNeeded = electiveGroups.reduce((sum, g) => sum + (g.courses_needed || 0), 0);
   const coreIds = coreRequirements.map(r => r.course_id);
@@ -86,7 +106,7 @@ function RequirementsProgress() {
             {/* Content */}
             <div className="max-w-6xl mx-auto p-8 space-y-10">
                 {/* Hero Stats / Summary Section */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className={`grid grid-cols-1 md:grid-cols-3 ${minorRequirements ? 'lg:grid-cols-4' : ''} gap-6`}>
                     {/* CS Core Progress */}
                     <div className="bg-surface-container-low p-8 rounded-xl shadow-[0_2px_16px_rgba(58,48,42,0.04)] border border-outline-variant/30 flex flex-col justify-between">
                         <div>
@@ -97,6 +117,30 @@ function RequirementsProgress() {
                             <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${corePercentage}%` }}></div>
                         </div>
                     </div>
+                    
+                    {/* Minor Progress */}
+                    {minorRequirements && (
+                        <div className={`p-8 rounded-xl shadow-[0_2px_16px_rgba(58,48,42,0.04)] relative overflow-hidden ${minorMet ? 'bg-surface-container-lowest border-2 border-primary/20' : 'bg-surface-container-low border border-outline-variant/30'}`}>
+                            {minorMet && (
+                                <div className="absolute -right-4 -top-4 opacity-10">
+                                    <span className="material-symbols-outlined text-8xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+                                </div>
+                            )}
+                            <h3 className="font-headline text-3xl font-semibold mb-2">{minorRequirements.name}</h3>
+                            <p className={`font-body text-sm font-bold flex items-center ${minorMet ? 'text-primary' : 'text-on-surface-variant'}`}>
+                                {minorMet && <span className="material-symbols-outlined text-sm mr-1" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>}
+                                {Math.round(minorPercentage)}% Met
+                            </p>
+                            <p className="font-body text-xs text-on-surface-variant mt-4">
+                                {minorMet ? 'Minor requirements fulfilled.' : `${minorTotal - minorCompletedOrPlanned} requirements remaining.`}
+                            </p>
+                            {!minorMet && (
+                                <div className="w-full bg-surface-dim h-1.5 rounded-full overflow-hidden mt-4">
+                                    <div className="bg-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${minorPercentage}%` }}></div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     
                     {/* General Ed Progress */}
                     <div className={`p-8 rounded-xl shadow-[0_2px_16px_rgba(58,48,42,0.04)] relative overflow-hidden ${genEdMet ? 'bg-surface-container-lowest border-2 border-primary/20' : 'bg-surface-container-low border border-outline-variant/30'}`}>
@@ -194,6 +238,55 @@ function RequirementsProgress() {
                                     </div>
                                 </section>
                                 
+                                {/* Minor Requirements Section */}
+                                {minorRequirements && minorReqs.length > 0 && (
+                                <section className="space-y-4 pt-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h2 className="font-headline text-2xl font-bold italic text-on-surface">{minorRequirements.name} Minor</h2>
+                                        <span className="font-body text-xs text-on-surface-variant tracking-widest uppercase">
+                                            {minorTotal} Required
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                        {minorReqs.map((req, idx) => {
+                                            let isMet = false;
+                                            let statusLabel = { text: 'Remaining', color: 'border-outline-variant text-on-surface-variant' };
+                                            
+                                            if (req.type === 'choose_n' && req.options) {
+                                                const metCount = req.options.filter(opt => getCourseStatus(opt) !== 'remaining').length;
+                                                isMet = metCount >= req.courses_needed;
+                                            } else if (req.type === 'course') {
+                                                const status = getCourseStatus(req.course_id);
+                                                isMet = status !== 'remaining';
+                                                statusLabel = getStatusLabel(status);
+                                            }
+
+                                            return (
+                                                <div key={`minor-${idx}`} className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/50 flex items-center justify-between hover:shadow-md transition-shadow">
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isMet ? 'bg-green-50 text-green-600' : 'bg-surface-container-highest text-outline'}`}>
+                                                            <span className="material-symbols-outlined">{isMet ? 'check_circle' : 'lock'}</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-body font-bold text-on-surface">{req.name || req.course_id}</p>
+                                                            <p className="font-body text-xs text-on-surface-variant">
+                                                                {req.type === 'choose_n' ? `Choose ${req.courses_needed} from: ${req.options.join(', ')}` : req.description || 'Required Course'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    {req.type === 'course' ? (
+                                                        <span className={`px-3 py-1 border text-[10px] font-bold rounded-full tracking-wider uppercase ${statusLabel.color}`}>{statusLabel.text}</span>
+                                                    ) : (
+                                                        <span className={`px-3 py-1 border text-[10px] font-bold rounded-full tracking-wider uppercase ${isMet ? 'bg-green-500/10 text-green-700 border-green-200' : 'border-outline-variant text-on-surface-variant'}`}>{isMet ? 'Met' : 'Remaining'}</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                                )}
+
                                 {/* Core Requirements Section */}
                                 <section className="space-y-4 pt-4">
                                     <div className="flex items-center justify-between px-2">
