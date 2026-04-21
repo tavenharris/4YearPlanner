@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import './App.css';
 
@@ -175,6 +176,7 @@ function App() {
     <Router>
       <AppContent />
       <Analytics />
+      <SpeedInsights />
     </Router>
   );
 }
