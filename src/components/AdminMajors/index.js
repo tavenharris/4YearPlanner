@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { getAllMajors, saveMajor, deleteMajor } from '../../services/db';
+import { getAllMajors, saveMajor, deleteMajor, getAllMinors, saveMinor, deleteMinor } from '../../services/db';
 
 const EMPTY_REQUIREMENTS = {
   major_requirements: [],
   core_requirements: []
 };
 
+const EMPTY_MINOR_REQUIREMENTS = {
+  minor_requirements: []
+};
+
 function AdminMajors() {
+  const [activeTab, setActiveTab] = useState('majors'); // 'majors' or 'minors'
+  
   const [majors, setMajors] = useState([]);
-  const [selectedMajor, setSelectedMajor] = useState(null);
+  const [minors, setMinors] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
   
   // Form State
-  const [majorId, setMajorId] = useState('');
-  const [majorName, setMajorName] = useState('');
+  const [itemId, setItemId] = useState('');
+  const [itemName, setItemName] = useState('');
   const [requirementsJson, setRequirementsJson] = useState(JSON.stringify(EMPTY_REQUIREMENTS, null, 2));
   
   const [loading, setLoading] = useState(false);
@@ -20,8 +27,12 @@ function AdminMajors() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    loadMajors();
-  }, []);
+    if (activeTab === 'majors') {
+      loadMajors();
+    } else {
+      loadMinors();
+    }
+  }, [activeTab]);
 
   async function loadMajors() {
     setLoading(true);
@@ -30,20 +41,34 @@ function AdminMajors() {
     setLoading(false);
   }
 
-  const handleSelectMajor = (major) => {
-    setSelectedMajor(major);
-    setMajorId(major.id);
-    setMajorName(major.name);
-    setRequirementsJson(JSON.stringify(major.requirements || EMPTY_REQUIREMENTS, null, 2));
+  async function loadMinors() {
+    setLoading(true);
+    const data = await getAllMinors();
+    setMinors(data || []);
+    setLoading(false);
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    handleCreateNew(tab);
+  };
+
+  const handleSelectItem = (item) => {
+    setSelectedItem(item);
+    setItemId(item.id);
+    setItemName(item.name);
+    const emptyReqs = activeTab === 'majors' ? EMPTY_REQUIREMENTS : EMPTY_MINOR_REQUIREMENTS;
+    setRequirementsJson(JSON.stringify(item.requirements || emptyReqs, null, 2));
     setError('');
     setSuccess('');
   };
 
-  const handleCreateNew = () => {
-    setSelectedMajor(null);
-    setMajorId('');
-    setMajorName('');
-    setRequirementsJson(JSON.stringify(EMPTY_REQUIREMENTS, null, 2));
+  const handleCreateNew = (tab = activeTab) => {
+    setSelectedItem(null);
+    setItemId('');
+    setItemName('');
+    const emptyReqs = tab === 'majors' ? EMPTY_REQUIREMENTS : EMPTY_MINOR_REQUIREMENTS;
+    setRequirementsJson(JSON.stringify(emptyReqs, null, 2));
     setError('');
     setSuccess('');
   };
@@ -52,13 +77,16 @@ function AdminMajors() {
     setError('');
     setSuccess('');
     
-    if (!majorId) {
-      setError('Major ID is required (e.g., "CSCI").');
+    const isMajor = activeTab === 'majors';
+    const typeName = isMajor ? 'Major' : 'Minor';
+    
+    if (!itemId) {
+      setError(`${typeName} ID is required (e.g., "${isMajor ? 'CSCI' : 'MATH'}").`);
       return;
     }
 
-    if (!majorName) {
-      setError('Major Name is required (e.g., "Computer Science B.S.").');
+    if (!itemName) {
+      setError(`${typeName} Name is required.`);
       return;
     }
 
@@ -71,38 +99,62 @@ function AdminMajors() {
     }
 
     setLoading(true);
-    const result = await saveMajor(majorId, {
-      id: majorId,
-      name: majorName,
+    const dataToSave = {
+      id: itemId,
+      name: itemName,
       requirements: parsedRequirements
-    });
+    };
+    
+    let result;
+    if (isMajor) {
+      result = await saveMajor(itemId, dataToSave);
+    } else {
+      result = await saveMinor(itemId, dataToSave);
+    }
 
     if (result) {
-      setSuccess('Major saved successfully!');
-      await loadMajors();
-      if (!selectedMajor) {
+      setSuccess(`${typeName} saved successfully!`);
+      if (isMajor) {
+        await loadMajors();
+      } else {
+        await loadMinors();
+      }
+      if (!selectedItem) {
         // If it was new, set it as selected
-        setSelectedMajor(result[0] || result);
+        setSelectedItem(result[0] || result);
       }
     } else {
-      setError('Failed to save major to database.');
+      setError(`Failed to save ${typeName.toLowerCase()} to database.`);
     }
     setLoading(false);
   };
 
   const handleDelete = async () => {
-    if (!selectedMajor) return;
-    const confirm = window.confirm(`Are you sure you want to delete major ${selectedMajor.id}?`);
+    if (!selectedItem) return;
+    const isMajor = activeTab === 'majors';
+    const typeName = isMajor ? 'major' : 'minor';
+    
+    const confirm = window.confirm(`Are you sure you want to delete ${typeName} ${selectedItem.id}?`);
     if (!confirm) return;
 
     setLoading(true);
-    const result = await deleteMajor(selectedMajor.id);
-    if (result) {
-      setSuccess('Major deleted successfully!');
-      handleCreateNew();
-      await loadMajors();
+    let result;
+    if (isMajor) {
+      result = await deleteMajor(selectedItem.id);
     } else {
-      setError('Failed to delete major.');
+      result = await deleteMinor(selectedItem.id);
+    }
+    
+    if (result) {
+      setSuccess(`${typeName.charAt(0).toUpperCase() + typeName.slice(1)} deleted successfully!`);
+      handleCreateNew();
+      if (isMajor) {
+        await loadMajors();
+      } else {
+        await loadMinors();
+      }
+    } else {
+      setError(`Failed to delete ${typeName}.`);
     }
     setLoading(false);
   };
@@ -117,36 +169,56 @@ function AdminMajors() {
     }
   };
 
+  const items = activeTab === 'majors' ? majors : minors;
+  const isMajor = activeTab === 'majors';
+  const typeName = isMajor ? 'Major' : 'Minor';
+
   return (
     <div className="flex-1 flex overflow-hidden p-8 bg-background min-h-screen">
       <div className="max-w-6xl mx-auto w-full flex gap-8">
         
-        {/* Left Side: List of Majors */}
+        {/* Left Side: List of Items */}
         <div className="w-1/3 flex flex-col gap-4">
-          <h2 className="text-2xl font-headline font-bold text-on-surface">Admin: Majors</h2>
+          <h2 className="text-2xl font-headline font-bold text-on-surface">Admin: Programs</h2>
+          
+          <div className="flex bg-surface-container-low rounded-lg p-1">
+            <button
+              onClick={() => handleTabChange('majors')}
+              className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === 'majors' ? 'bg-white shadow-sm text-primary' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              Majors
+            </button>
+            <button
+              onClick={() => handleTabChange('minors')}
+              className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${activeTab === 'minors' ? 'bg-white shadow-sm text-primary' : 'text-stone-500 hover:text-stone-700'}`}
+            >
+              Minors
+            </button>
+          </div>
+
           <button 
-            onClick={handleCreateNew}
+            onClick={() => handleCreateNew(activeTab)}
             className="w-full bg-primary text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:opacity-90 transition-opacity"
           >
-            + Create New Major
+            + Create New {typeName}
           </button>
           
           <div className="flex-1 overflow-y-auto bg-surface-container-low rounded-xl border border-outline-variant/40 p-2 space-y-2">
-            {majors.map(major => (
+            {items.map(item => (
               <div 
-                key={major.id}
-                onClick={() => handleSelectMajor(major)}
-                className={`p-3 rounded-lg cursor-pointer transition-colors border ${selectedMajor?.id === major.id ? 'border-primary bg-primary/10' : 'border-outline-variant/40 bg-white hover:border-primary/50'}`}
+                key={item.id}
+                onClick={() => handleSelectItem(item)}
+                className={`p-3 rounded-lg cursor-pointer transition-colors border ${selectedItem?.id === item.id ? 'border-primary bg-primary/10' : 'border-outline-variant/40 bg-white hover:border-primary/50'}`}
               >
-                <p className="font-bold text-sm text-on-surface">{major.id}</p>
-                <p className="text-xs text-stone-500">{major.name}</p>
+                <p className="font-bold text-sm text-on-surface">{item.id}</p>
+                <p className="text-xs text-stone-500">{item.name}</p>
               </div>
             ))}
-            {majors.length === 0 && !loading && (
-              <p className="p-4 text-xs text-stone-500 text-center">No majors found.</p>
+            {items.length === 0 && !loading && (
+              <p className="p-4 text-xs text-stone-500 text-center">No {typeName.toLowerCase()}s found.</p>
             )}
-            {loading && !selectedMajor && (
-              <p className="p-4 text-xs text-stone-500 text-center">Loading majors...</p>
+            {loading && !selectedItem && (
+              <p className="p-4 text-xs text-stone-500 text-center">Loading {typeName.toLowerCase()}s...</p>
             )}
           </div>
         </div>
@@ -155,14 +227,14 @@ function AdminMajors() {
         <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm border border-outline-variant/40 p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold text-on-surface">
-              {selectedMajor ? `Edit Major: ${selectedMajor.id}` : 'Create New Major'}
+              {selectedItem ? `Edit ${typeName}: ${selectedItem.id}` : `Create New ${typeName}`}
             </h3>
-            {selectedMajor && (
+            {selectedItem && (
               <button 
                 onClick={handleDelete}
                 className="text-error text-sm font-bold hover:underline"
               >
-                Delete Major
+                Delete {typeName}
               </button>
             )}
           </div>
@@ -173,23 +245,23 @@ function AdminMajors() {
           <div className="space-y-4 flex-1 flex flex-col">
             <div className="flex gap-4">
               <div className="w-1/3">
-                <label className="block text-xs font-bold text-stone-500 mb-1">Major ID</label>
+                <label className="block text-xs font-bold text-stone-500 mb-1">{typeName} ID</label>
                 <input 
                   type="text" 
-                  value={majorId}
-                  onChange={(e) => setMajorId(e.target.value.toUpperCase())}
-                  disabled={!!selectedMajor}
-                  placeholder="e.g., MATH"
+                  value={itemId}
+                  onChange={(e) => setItemId(e.target.value.toUpperCase())}
+                  disabled={!!selectedItem}
+                  placeholder={`e.g., ${isMajor ? 'MATH' : 'HIST'}`}
                   className="w-full px-3 py-2 border border-outline-variant/60 rounded-lg text-sm focus:ring-primary focus:border-primary"
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-xs font-bold text-stone-500 mb-1">Major Name</label>
+                <label className="block text-xs font-bold text-stone-500 mb-1">{typeName} Name</label>
                 <input 
                   type="text" 
-                  value={majorName}
-                  onChange={(e) => setMajorName(e.target.value)}
-                  placeholder="e.g., Mathematics B.S."
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  placeholder={`e.g., ${isMajor ? 'Mathematics B.S.' : 'History Minor'}`}
                   className="w-full px-3 py-2 border border-outline-variant/60 rounded-lg text-sm focus:ring-primary focus:border-primary"
                 />
               </div>
@@ -207,7 +279,7 @@ function AdminMajors() {
                 style={{ minHeight: '300px' }}
               />
               <p className="text-[10px] text-stone-400 mt-2">
-                Tip: Copy structure from an existing major. Ensure proper JSON syntax.
+                Tip: Copy structure from an existing {typeName.toLowerCase()}. Ensure proper JSON syntax.
               </p>
             </div>
 
@@ -217,7 +289,7 @@ function AdminMajors() {
                 disabled={loading}
                 className="bg-primary text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
               >
-                {loading ? 'Saving...' : 'Save Major'}
+                {loading ? 'Saving...' : `Save ${typeName}`}
               </button>
             </div>
           </div>

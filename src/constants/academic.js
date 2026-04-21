@@ -16,10 +16,10 @@ export function normalizeMajor(major, majorOptions = []) {
   return majorOptions.length > 0 ? majorOptions[0].value : 'CSCI';
 }
 
-export function normalizeMinor(minor) {
+export function normalizeMinor(minor, minorOptions = []) {
   if (!minor) return 'None';
-  if (MINOR_OPTIONS.some(o => o.value === minor)) return minor;
-  const matchLabel = MINOR_OPTIONS.find(o => o.label === minor);
+  if (minorOptions.some(o => o.value === minor)) return minor;
+  const matchLabel = minorOptions.find(o => o.label === minor);
   if (matchLabel) return matchLabel.value;
   return 'None';
 }

@@ -118,6 +118,72 @@ export async function getMajorRequirements(majorId) {
     return data;
 }
 
+export async function getAllMinorsOptions() {
+    const { data, error } = await supabase
+        .from('minors')
+        .select('id, name')
+        .order('name');
+        
+    if (error) {
+        console.error('Error fetching all minor options:', error);
+        return [];
+    }
+    return data.map(minor => ({ value: minor.id, label: minor.name }));
+}
+
+export async function getAllMinors() {
+    const { data, error } = await supabase
+        .from('minors')
+        .select('*');
+        
+    if (error) {
+        console.error('Error fetching all minors:', error);
+        return [];
+    }
+    return data;
+}
+
+export async function saveMinor(minorId, minorData) {
+    const { data, error } = await supabase
+        .from('minors')
+        .upsert({ id: minorId, ...minorData })
+        .select();
+        
+    if (error) {
+        console.error('Error saving minor:', error);
+        return null;
+    }
+    return data;
+}
+
+export async function deleteMinor(minorId) {
+    const { data, error } = await supabase
+        .from('minors')
+        .delete()
+        .eq('id', minorId)
+        .select();
+        
+    if (error) {
+        console.error('Error deleting minor:', error);
+        return null;
+    }
+    return data;
+}
+
+export async function getMinorRequirements(minorId) {
+    const { data, error } = await supabase
+        .from('minors')
+        .select('*')
+        .eq('id', minorId)
+        .single();
+        
+    if (error) {
+        console.error('Error fetching minor requirements:', error);
+        return null;
+    }
+    return data;
+}
+
 export async function getUserProfile(userId) {
     const { data, error } = await supabase
         .from('user_profiles')

@@ -82,7 +82,7 @@ function AppContent() {
     { to: "/student-planner", icon: "calendar_month", label: "Course Plan" },
     { to: "/requirements-progress", icon: "checklist", label: "Requirements" },
     { to: "/settings", icon: "settings", label: "Settings" },
-    ...(isAdmin ? [{ to: "/admin-majors", icon: "admin_panel_settings", label: "Admin: Majors" }] : [])
+    ...(isAdmin ? [{ to: "/admin-majors", icon: "admin_panel_settings", label: "Admin" }] : [])
   ];
 
   return (
