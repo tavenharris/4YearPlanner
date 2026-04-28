@@ -6,8 +6,10 @@ import * as db from './services/db';
 
 // Mock Vercel modules
 jest.mock('@vercel/analytics/react', () => ({
+  Analytics: () => null,
 }), { virtual: true });
 jest.mock('@vercel/speed-insights/react', () => ({
+  SpeedInsights: () => null,
 }), { virtual: true });
 
 // Mock supabase
