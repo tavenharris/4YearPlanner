@@ -9,7 +9,7 @@ import RequirementsProgress from './components/RequirementsProgress';
 import StudentNotifications from './components/StudentNotifications';
 import StudentOnboarding from './components/StudentOnboarding';
 import StudentPlanner from './components/StudentPlanner';
-import StudentSettings from './components/StudentSettings';
+import StudentSettings from './components/StudentSettings/StudentSettings';
 import AdminMajors from './components/AdminMajors';
 import { getUserProfile, getAllMajorsOptions } from './services/db';
 import { supabase } from './services/supabaseClient';
