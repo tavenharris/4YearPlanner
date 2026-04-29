@@ -49,8 +49,14 @@ class CourseEval:
 
 
 def normalize_course_id(raw: str) -> str:
-    """Turn 'Math 11' or 'MATH 11L' into 'MATH11L' to match the scripts' key pattern."""
+    """Turn 'Math 11' or 'MATH 11L' into 'MATH11L'."""
     return re.sub(r"\s+", "", raw.strip().upper())
+
+
+def dept_from_course_id(course_id: str) -> str:
+    """Extract 'ANTH' from 'ANTH1' or 'ANTH11A'."""
+    m = re.match(r"^([A-Z]+)", course_id)
+    return m.group(1) if m else "UNKNOWN"
 
 
 def to_float(val: str) -> Optional[float]:
@@ -60,95 +66,107 @@ def to_float(val: str) -> Optional[float]:
         return None
 
 
+def _term_sort_key(term: str) -> tuple:
+    """Sort terms most-recent-first. Format: 'Fall 2025', 'Spring 2024', etc."""
+    order = {"Fall": 4, "Summer": 3, "Spring": 2, "Winter": 1}
+    parts = term.split()
+    try:
+        year = int(parts[-1])
+        season = order.get(parts[0], 0)
+        return (-year, -season)
+    except (ValueError, IndexError):
+        return (0, 0)
+
+
+def _stats_bucket() -> dict:
+    return {"qualityTotal": 0.0, "qualityCount": 0,
+            "difficultyTotal": 0.0, "difficultyCount": 0,
+            "workloadTotal": 0.0, "workloadCount": 0}
+
+
+def _add_quality(bucket: dict, quality: Optional[float]) -> None:
+    if quality is not None:
+        bucket["qualityTotal"] += quality
+        bucket["qualityCount"] += 1
+
+
 def build_aggregate(evals: list[CourseEval]) -> dict:
-    """
-    Transform flat eval rows into the aggregate_evals.json format:
-      { "MATH11": { ...course data... }, "Jane Smith": { ...prof data... }, "departmentStatistics": {...} }
-    """
-    courses: dict = {}
-    professors: dict = {}
-    dept_totals: dict = {}
+    """Build aggregate_evals.json matching the expected schema."""
+    # Accumulators (keyed by course_id / instructor name / dept)
+    courses: dict = {}       # course_id -> working data
+    professors: dict = {}    # instructor -> working data
+    dept_avgs: dict = {}     # dept -> list of per-section quality averages
 
     for e in evals:
         course_id = normalize_course_id(e.course)
+        if not course_id:
+            continue
+        dept = dept_from_course_id(course_id)
         instructor = e.instructor.strip()
         quality = to_float(e.overall_quality)
-        rate = to_float(e.response_rate)
+        term = e.term.strip()
 
-        row = {
-            "term": e.term,
-            "section": e.section,
-            "instructor": instructor,
-            "enrolled": e.enrolled,
-            "responses": e.responses,
-            "response_rate": e.response_rate,
-            "overall_quality": e.overall_quality,
-            "detail_url": e.detail_url,
-        }
-
-        # --- course bucket ---
+        # ── course ──────────────────────────────────────────────────────────
         if course_id not in courses:
             courses[course_id] = {
-                "title": e.title,
-                "department": e.school,
-                "evaluations": [],
-                "quality_sum": 0.0,
-                "quality_count": 0,
+                **_stats_bucket(),
+                "recentTerms": [],
+                "courseName": e.title.strip(),
+                "professors": [],
+                "type": "course",
             }
-        courses[course_id]["evaluations"].append(row)
-        if quality is not None:
-            courses[course_id]["quality_sum"] += quality
-            courses[course_id]["quality_count"] += 1
+        c = courses[course_id]
+        _add_quality(c, quality)
+        if term and term not in c["recentTerms"]:
+            c["recentTerms"].append(term)
+        if instructor and instructor not in c["professors"]:
+            c["professors"].append(instructor)
 
-        # --- professor bucket ---
-        if instructor and instructor != "—":
+        # ── professor ────────────────────────────────────────────────────────
+        if instructor and instructor not in ("—", ""):
             if instructor not in professors:
                 professors[instructor] = {
-                    "courses_taught": [],
-                    "evaluations": [],
-                    "quality_sum": 0.0,
-                    "quality_count": 0,
+                    "type": "prof",
+                    "overall": _stats_bucket(),
                 }
-            prof = professors[instructor]
-            prof["evaluations"].append({**row, "course": course_id})
-            if course_id not in prof["courses_taught"]:
-                prof["courses_taught"].append(course_id)
-            if quality is not None:
-                prof["quality_sum"] += quality
-                prof["quality_count"] += 1
+            p = professors[instructor]
+            _add_quality(p["overall"], quality)
 
-        # --- department totals ---
-        dept = e.school.strip() or "Unknown"
-        if dept not in dept_totals:
-            dept_totals[dept] = {"quality_sum": 0.0, "quality_count": 0, "total_evals": 0}
-        dept_totals[dept]["total_evals"] += 1
+            # per-department bucket on the prof
+            if dept not in p:
+                p[dept] = _stats_bucket()
+            _add_quality(p[dept], quality)
+
+            # per-course bucket on the prof
+            if course_id not in p:
+                p[course_id] = {**_stats_bucket(), "recentTerms": []}
+            _add_quality(p[course_id], quality)
+            if term and term not in p[course_id]["recentTerms"]:
+                p[course_id]["recentTerms"].append(term)
+
+        # ── department quality avgs (one entry per section) ──────────────────
         if quality is not None:
-            dept_totals[dept]["quality_sum"] += quality
-            dept_totals[dept]["quality_count"] += 1
+            dept_avgs.setdefault(dept, []).append(round(quality, 4))
 
+    # ── finalise ─────────────────────────────────────────────────────────────
     aggregate: dict = {}
 
     for cid, data in courses.items():
-        count = data.pop("quality_count")
-        qsum = data.pop("quality_sum")
-        data["avg_overall_quality"] = round(qsum / count, 2) if count else None
-        data["total_evaluations"] = len(data["evaluations"])
+        data["recentTerms"] = sorted(data["recentTerms"], key=_term_sort_key)
         aggregate[cid] = data
 
     for name, data in professors.items():
-        count = data.pop("quality_count")
-        qsum = data.pop("quality_sum")
-        data["avg_overall_quality"] = round(qsum / count, 2) if count else None
-        data["total_evaluations"] = len(data["evaluations"])
+        for key in list(data.keys()):
+            if key in ("type", "overall"):
+                continue
+            if "recentTerms" in data[key]:
+                data[key]["recentTerms"] = sorted(data[key]["recentTerms"], key=_term_sort_key)
         aggregate[name] = data
 
-    dept_stats = {}
-    for dept, d in dept_totals.items():
-        dept_stats[dept] = {
-            "avg_overall_quality": round(d["quality_sum"] / d["quality_count"], 2) if d["quality_count"] else None,
-            "total_evaluations": d["total_evals"],
-        }
-    aggregate["departmentStatistics"] = dept_stats
+    aggregate["departmentStatistics"] = {
+        dept: {"qualityAvgs": sorted(avgs)}
+        for dept, avgs in dept_avgs.items()
+    }
 
     return aggregate
 
@@ -256,6 +274,9 @@ def build_search_url(query: str = "", course: str = "") -> str:
     return BASE_URL + "?" + "&".join(f"{k}={quote_plus(str(v))}" for k, v in params)
 
 
+DEBUG_COLUMNS = False  # set via --debug-columns flag
+
+
 async def parse_page(page: Page) -> list[CourseEval]:
     await page.wait_for_load_state("networkidle")
 
@@ -271,7 +292,13 @@ async def parse_page(page: Page) -> list[CourseEval]:
         if cell_count == 0:
             continue
 
-        texts = [(await cells.nth(j).text_content() or "").strip() for j in range(cell_count)]
+        # inner_text() respects CSS visibility and skips hidden sort-key spans
+        texts = [(await cells.nth(j).inner_text() or "").strip() for j in range(cell_count)]
+
+        if DEBUG_COLUMNS and i < 3:
+            print(f"\n  [DEBUG row {i}] {cell_count} cells:")
+            for ci, t in enumerate(texts):
+                print(f"    [{ci}] {repr(t)}")
 
         link_el = row.locator("a").first
         detail_url = ""
@@ -279,17 +306,20 @@ async def parse_page(page: Page) -> list[CourseEval]:
             href = await link_el.get_attribute("href") or ""
             detail_url = href if href.startswith("http") else ("https://www.scu.edu" + href if href else "")
 
+        # Column order (confirmed from table inspection):
+        # 0: term   1: course   2: section-key   3: title   4: instructor
+        # 5: school   6: section   7: enrolled   8: responses   9: rate   10: quality
         evals.append(CourseEval(
             term=texts[0] if len(texts) > 0 else "",
             course=texts[1] if len(texts) > 1 else "",
-            title=texts[2] if len(texts) > 2 else "",
-            instructor=texts[3] if len(texts) > 3 else "",
-            school=texts[4] if len(texts) > 4 else "",
-            section=texts[5] if len(texts) > 5 else "",
-            enrolled=texts[6] if len(texts) > 6 else "",
-            responses=texts[7] if len(texts) > 7 else "",
-            response_rate=texts[8] if len(texts) > 8 else "",
-            overall_quality=texts[9] if len(texts) > 9 else "",
+            title=texts[3] if len(texts) > 3 else "",
+            instructor=texts[4] if len(texts) > 4 else "",
+            school=texts[5] if len(texts) > 5 else "",
+            section=texts[6] if len(texts) > 6 else "",
+            enrolled=texts[7] if len(texts) > 7 else "",
+            responses=texts[8] if len(texts) > 8 else "",
+            response_rate=texts[9] if len(texts) > 9 else "",
+            overall_quality=texts[10] if len(texts) > 10 else "",
             detail_url=detail_url,
         ))
     return evals
@@ -342,25 +372,19 @@ async def scrape_department(page: Page, dept: str) -> list[CourseEval]:
     if not hit_cap:
         return evals
 
-    print(f"  [{dept}] Hit cap — subdividing by first digit...")
+    return await _subdivide(page, dept, prefix="")
+
+
+async def _subdivide(page: Page, dept: str, prefix: str) -> list[CourseEval]:
+    """Recursively subdivide by appending digits until the cap is no longer hit."""
     all_evals: list[CourseEval] = []
-    for d1 in "0123456789":
-        query1 = f"{dept} {d1}"
-        sub_evals, sub_hit_cap = await scrape_search(page, build_search_url(query=query1), query1)
-
-        if not sub_hit_cap:
-            all_evals.extend(sub_evals)
-            continue
-
-        # Still capped — go one digit deeper
-        print(f"  [{query1}] Still hit cap — subdividing by second digit...")
-        for d2 in "0123456789":
-            query2 = f"{dept} {d1}{d2}"
-            sub2_evals, sub2_hit_cap = await scrape_search(page, build_search_url(query=query2), query2)
-            all_evals.extend(sub2_evals)
-            if sub2_hit_cap:
-                print(f"  WARNING: [{query2}] still hit the cap — some results may be missing.")
-
+    for digit in "0123456789":
+        query = f"{dept} {prefix}{digit}"
+        evals, hit_cap = await scrape_search(page, build_search_url(query=query), query)
+        if hit_cap:
+            print(f"  [{query}] Still hit cap — subdividing by adding another digit...")
+            evals = await _subdivide(page, dept, prefix=f"{prefix}{digit}")
+        all_evals.extend(evals)
     return all_evals
 
 
@@ -510,9 +534,14 @@ def main():
     parser.add_argument("--no-resume", action="store_true", help="Ignore existing file and start fresh")
     parser.add_argument("--workers", type=int, default=4, help="Parallel browser tabs (default: 4)")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
+    parser.add_argument("--debug-columns", action="store_true", help="Print raw cell values for first 3 rows to verify column mapping")
     parser.add_argument("--username", default=os.environ.get("SCU_USERNAME", ""))
     parser.add_argument("--password", default=os.environ.get("SCU_PASSWORD", ""))
     args = parser.parse_args()
+
+    if args.debug_columns:
+        import course_eval_scrape as _self
+        _self.DEBUG_COLUMNS = True
 
     if not args.username or not args.password:
         print(
