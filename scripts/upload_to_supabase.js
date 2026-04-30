@@ -30,18 +30,39 @@ async function uploadData() {
   const professors = [];
   const departmentStats = [];
 
+  let skippedInternal = 0;
+  let skippedNoData = 0;
+
   console.log('Categorizing data...');
   for (const key of Object.keys(data)) {
+    // Skip internal tracking keys (e.g. _completedDepartments)
+    if (key.startsWith('_')) {
+      skippedInternal++;
+      continue;
+    }
+
     if (key === 'departmentStatistics') {
       departmentStats.push({ id: 'all_departments', data: data[key] });
     } else if (/^[A-Z]+[0-9]+[A-Z]*$/.test(key)) {
+      // Skip courses where no PDF data was ever pulled (all totals are zero)
+      if ((data[key].qualityCount ?? 0) === 0) {
+        skippedNoData++;
+        continue;
+      }
       courses.push({ id: key, data: data[key] });
     } else {
+      // Skip professors where no PDF data was ever pulled
+      if ((data[key].overall?.qualityCount ?? 0) === 0) {
+        skippedNoData++;
+        continue;
+      }
       professors.push({ id: key, data: data[key] });
     }
   }
 
   console.log(`Found ${courses.length} courses, ${professors.length} professors, ${departmentStats.length} department stats.`);
+  if (skippedInternal) console.log(`Skipped ${skippedInternal} internal key(s).`);
+  if (skippedNoData) console.log(`Skipped ${skippedNoData} entries with no PDF data (qualityCount = 0).`);
 
   async function batchInsert(table, items) {
     if (items.length === 0) return;

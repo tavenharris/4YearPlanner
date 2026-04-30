@@ -304,7 +304,7 @@ async def parse_page(page: Page) -> list[CourseEval]:
         detail_url = ""
         if await link_el.count() > 0:
             href = await link_el.get_attribute("href") or ""
-            detail_url = href if href.startswith("http") else ("https://www.scu.edu" + href if href else "")
+            detail_url = href if href.startswith("http") else (BASE_URL.rstrip("/") + "/" + href.lstrip("/") if href else "")
 
         # Column order (confirmed from table inspection):
         # 0: term   1: course   2: section-key   3: title   4: instructor
@@ -345,46 +345,58 @@ async def scrape_search(page: Page, url: str, label: str) -> tuple[list[CourseEv
         all_evals.extend(page_evals)
         print(f"  [{label}] page {page_num}: {len(page_evals)} rows  (subtotal: {len(all_evals)})")
 
-        if page_num == 10:
+        # Fewer than 50 rows means this is the last page — no need to check further
+        if len(page_evals) < 50 or page_num == 10:
             break
 
-        next_btn = page.locator(
+        await page.locator(
             "a:has-text('Next'), a:has-text('>'), [aria-label='Next page'], "
             ".pagination .next:not(.disabled) a"
-        ).first
-        if await next_btn.count() == 0 or not await next_btn.is_enabled():
-            break
-
-        await next_btn.click()
+        ).first.click()
         await page.wait_for_load_state("networkidle")
 
     return all_evals, False
 
 
-async def scrape_department(page: Page, dept: str) -> list[CourseEval]:
+async def scrape_department_parallel(browser, cookies: list, dept: str, workers: int) -> list[CourseEval]:
     """
-    Scrape all evals for a department.
-    If the 500-result cap is hit, subdivide by first digit, then second digit if needed.
-    e.g. AMTH -> AMTH 8 (still capped) -> AMTH 80, AMTH 81 ... AMTH 89
+    Scrape a full department using a work queue shared across all workers.
+    If a query hits the 500-result cap it pushes 10 digit-subdivisions back
+    onto the queue instead of blocking — no deadlock possible.
     """
-    url = build_search_url(query=dept)
-    evals, hit_cap = await scrape_search(page, url, dept)
-    if not hit_cap:
-        return evals
+    queue: asyncio.Queue = asyncio.Queue()
+    await queue.put(dept)
 
-    return await _subdivide(page, dept, prefix="")
-
-
-async def _subdivide(page: Page, dept: str, prefix: str) -> list[CourseEval]:
-    """Recursively subdivide by appending digits until the cap is no longer hit."""
     all_evals: list[CourseEval] = []
-    for digit in "0123456789":
-        query = f"{dept} {prefix}{digit}"
-        evals, hit_cap = await scrape_search(page, build_search_url(query=query), query)
-        if hit_cap:
-            print(f"  [{query}] Still hit cap — subdividing by adding another digit...")
-            evals = await _subdivide(page, dept, prefix=f"{prefix}{digit}")
-        all_evals.extend(evals)
+    results_lock = asyncio.Lock()
+
+    async def worker() -> None:
+        while True:
+            query = await queue.get()
+            ctx = await browser.new_context()
+            await ctx.add_cookies(cookies)
+            page = await ctx.new_page()
+            try:
+                evals, hit_cap = await scrape_search(page, build_search_url(query=query), query)
+                if hit_cap:
+                    # Push narrower queries onto the queue for any free worker to pick up
+                    prefix = query[len(dept):].strip()
+                    for digit in "0123456789":
+                        sub = f"{dept} {prefix}{digit}".strip()
+                        await queue.put(sub)
+                else:
+                    async with results_lock:
+                        all_evals.extend(evals)
+            finally:
+                await ctx.close()
+                queue.task_done()
+
+    worker_tasks = [asyncio.create_task(worker()) for _ in range(workers)]
+    await queue.join()
+    for task in worker_tasks:
+        task.cancel()
+    await asyncio.gather(*worker_tasks, return_exceptions=True)
+
     return all_evals
 
 
@@ -401,6 +413,42 @@ def merge_aggregate(existing: dict, new_agg: dict) -> dict:
     return existing
 
 
+def append_raw_sections(evals: list[CourseEval], aggregate_output: str) -> None:
+    """Merge new eval rows into sections_raw.json, deduplicating by detail_url."""
+    raw_path = Path(aggregate_output).parent / "sections_raw.json"
+    tmp_path = raw_path.with_suffix(".tmp")
+
+    existing: list = []
+    if raw_path.exists():
+        try:
+            with open(raw_path) as f:
+                existing = json.load(f)
+        except Exception:
+            existing = []
+
+    seen_urls = {r["detail_url"] for r in existing if r.get("detail_url")}
+    added = 0
+    for e in evals:
+        if e.detail_url and e.detail_url not in seen_urls:
+            seen_urls.add(e.detail_url)
+            existing.append({
+                "course_id": normalize_course_id(e.course),
+                "term": e.term,
+                "instructor": e.instructor.strip(),
+                "detail_url": e.detail_url,
+                "pdf_processed": False,
+            })
+            added += 1
+
+    # Atomic write: write to .tmp then rename to avoid corruption
+    with open(tmp_path, "w") as f:
+        json.dump(existing, f, indent=2)
+    tmp_path.replace(raw_path)
+
+    if added:
+        print(f"  +{added} new sections → sections_raw.json ({len(existing):,} total)")
+
+
 def save_aggregate(aggregate: dict, output: str) -> None:
     with open(output, "w") as f:
         json.dump(aggregate, f, indent=2)
@@ -408,36 +456,6 @@ def save_aggregate(aggregate: dict, output: str) -> None:
     profs_count = sum(1 for k in aggregate if k != "departmentStatistics" and not re.match(r"^[A-Z]+[0-9]+[A-Z]*$", k))
     print(f"  Saved: {courses_count} courses, {profs_count} professors, "
           f"{len(aggregate.get('departmentStatistics', {}))} departments  →  {output}")
-
-
-async def dept_worker(
-    browser,
-    cookies: list,
-    dept: str,
-    semaphore: asyncio.Semaphore,
-    save_lock: asyncio.Lock,
-    existing: dict,
-    output: str,
-    completed: list,
-    total: int,
-) -> None:
-    async with semaphore:
-        ctx = await browser.new_context()
-        await ctx.add_cookies(cookies)
-        page = await ctx.new_page()
-        try:
-            print(f"\n[{len(completed) + 1}/{total}] Starting {dept}...")
-            dept_evals = await scrape_department(page, dept)
-            print(f"  {dept}: {len(dept_evals)} total rows — done.")
-
-            if dept_evals:
-                dept_aggregate = build_aggregate(dept_evals)
-                async with save_lock:
-                    merge_aggregate(existing, dept_aggregate)
-                    save_aggregate(existing, output)
-        finally:
-            completed.append(dept)
-            await ctx.close()
 
 
 async def scrape_all_departments(
@@ -453,20 +471,30 @@ async def scrape_all_departments(
     if resume and os.path.exists(output):
         with open(output) as f:
             existing = json.load(f)
-        done_depts = set(existing.get("departmentStatistics", {}).keys())
-        print(f"Resuming — {len(done_depts)} departments already scraped.")
+
+        # Backfill _completedDepartments from departmentStatistics for files
+        # that were scraped before this key existed.
+        if "_completedDepartments" not in existing:
+            inferred = [d for d in SCU_DEPARTMENTS if d in existing.get("departmentStatistics", {})]
+            existing["_completedDepartments"] = inferred
+            with open(output, "w") as f:
+                json.dump(existing, f, indent=2)
+            print(f"Migrated: inferred {len(inferred)} completed departments from existing data.")
+
+        done_depts = set(existing["_completedDepartments"])
+        print(f"Resuming — {len(done_depts)}/{len(SCU_DEPARTMENTS)} departments already scraped.")
 
     remaining = [d for d in SCU_DEPARTMENTS if d not in done_depts]
     if not remaining:
         print("All departments already scraped.")
         return
 
-    print(f"{len(remaining)} departments to scrape with {workers} parallel workers.\n")
+    print(f"{len(remaining)} departments to scrape, {workers} parallel workers per department.\n")
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
 
-        # Auth once in a single context, then copy cookies to all workers
+        # Auth once, share cookies across all worker pages
         auth_ctx = await browser.new_context()
         auth_page = await auth_ctx.new_page()
         print("Authenticating...")
@@ -475,17 +503,23 @@ async def scrape_all_departments(
             await shibboleth_login(auth_page, username, password)
         cookies = await auth_ctx.cookies()
         await auth_ctx.close()
-        print(f"Auth complete. Launching {workers} workers...\n")
+        print(f"Auth complete.\n")
 
-        semaphore = asyncio.Semaphore(workers)
-        save_lock = asyncio.Lock()
-        completed: list = []
+        for i, dept in enumerate(remaining, 1):
+            print(f"\n[{i}/{len(remaining)}] Scraping {dept} with {workers} parallel workers...")
+            dept_evals = await scrape_department_parallel(browser, cookies, dept, workers)
+            print(f"  {dept}: {len(dept_evals)} total rows — done.")
 
-        tasks = [
-            dept_worker(browser, cookies, dept, semaphore, save_lock, existing, output, completed, len(remaining))
-            for dept in remaining
-        ]
-        await asyncio.gather(*tasks)
+            if dept_evals:
+                dept_aggregate = build_aggregate(dept_evals)
+                merge_aggregate(existing, dept_aggregate)
+                append_raw_sections(dept_evals, output)
+
+            existing.setdefault("_completedDepartments", [])
+            if dept not in existing["_completedDepartments"]:
+                existing["_completedDepartments"].append(dept)
+            save_aggregate(existing, output)
+
         await browser.close()
 
     print(f"\nDone. Full database saved to {output}")
