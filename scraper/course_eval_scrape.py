@@ -363,11 +363,17 @@ async def scrape_department_parallel(browser, cookies: list, dept: str, workers:
     Scrape a full department using a work queue shared across all workers.
     If a query hits the 500-result cap it pushes 10 digit-subdivisions back
     onto the queue instead of blocking — no deadlock possible.
+
+    Results are filtered to rows whose course code actually starts with `dept`
+    (the search is fuzzy, so "MATH 1" also returns ENGR 111, PHYS 111, etc.).
+    Deduplication by detail_url is done in-memory so subdivision overlap never
+    produces duplicate rows in the final list.
     """
     queue: asyncio.Queue = asyncio.Queue()
     await queue.put(dept)
 
     all_evals: list[CourseEval] = []
+    seen_urls: set = set()          # dedup by section URL within this dept run
     results_lock = asyncio.Lock()
 
     async def worker() -> None:
@@ -385,8 +391,22 @@ async def scrape_department_parallel(browser, cookies: list, dept: str, workers:
                         sub = f"{dept} {prefix}{digit}".strip()
                         await queue.put(sub)
                 else:
+                    # Keep only rows that actually belong to this department.
+                    # The site's fuzzy search returns cross-dept noise (e.g. searching
+                    # "MATH 1" also returns ENGR 111, PHYS 111, etc.).
+                    dept_evals = [
+                        e for e in evals
+                        if normalize_course_id(e.course).startswith(dept)
+                    ]
                     async with results_lock:
-                        all_evals.extend(evals)
+                        for e in dept_evals:
+                            # Deduplicate: subdivision queries overlap, so the same
+                            # section can appear in multiple queries.
+                            if e.detail_url and e.detail_url in seen_urls:
+                                continue
+                            if e.detail_url:
+                                seen_urls.add(e.detail_url)
+                            all_evals.append(e)
             finally:
                 await ctx.close()
                 queue.task_done()
@@ -464,6 +484,7 @@ async def scrape_all_departments(
     output: str = DEFAULT_OUTPUT,
     resume: bool = True,
     workers: int = 4,
+    dept_workers: int = 2,
     headless: bool = False,
 ) -> None:
     existing: dict = {}
@@ -489,7 +510,10 @@ async def scrape_all_departments(
         print("All departments already scraped.")
         return
 
-    print(f"{len(remaining)} departments to scrape, {workers} parallel workers per department.\n")
+    print(
+        f"{len(remaining)} departments to scrape  "
+        f"({dept_workers} departments in parallel, {workers} tabs per department).\n"
+    )
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)
@@ -503,23 +527,34 @@ async def scrape_all_departments(
             await shibboleth_login(auth_page, username, password)
         cookies = await auth_ctx.cookies()
         await auth_ctx.close()
-        print(f"Auth complete.\n")
+        print("Auth complete.\n")
 
-        for i, dept in enumerate(remaining, 1):
-            print(f"\n[{i}/{len(remaining)}] Scraping {dept} with {workers} parallel workers...")
+        # Protect concurrent writes to `existing` and the output file.
+        save_lock = asyncio.Lock()
+
+        async def process_dept(dept: str, idx: int) -> None:
+            print(f"\n[{idx}/{len(remaining)}] Scraping {dept} ({workers} tabs)...")
             dept_evals = await scrape_department_parallel(browser, cookies, dept, workers)
-            print(f"  {dept}: {len(dept_evals)} total rows — done.")
+            print(f"  {dept}: {len(dept_evals)} rows — done.")
 
-            if dept_evals:
-                dept_aggregate = build_aggregate(dept_evals)
-                merge_aggregate(existing, dept_aggregate)
-                append_raw_sections(dept_evals, output)
+            async with save_lock:
+                if dept_evals:
+                    dept_aggregate = build_aggregate(dept_evals)
+                    merge_aggregate(existing, dept_aggregate)
+                    append_raw_sections(dept_evals, output)
+                existing.setdefault("_completedDepartments", [])
+                if dept not in existing["_completedDepartments"]:
+                    existing["_completedDepartments"].append(dept)
+                save_aggregate(existing, output)
 
-            existing.setdefault("_completedDepartments", [])
-            if dept not in existing["_completedDepartments"]:
-                existing["_completedDepartments"].append(dept)
-            save_aggregate(existing, output)
+        # Run up to `dept_workers` departments concurrently.
+        sem = asyncio.Semaphore(dept_workers)
 
+        async def bounded(dept: str, idx: int) -> None:
+            async with sem:
+                await process_dept(dept, idx)
+
+        await asyncio.gather(*[bounded(d, i) for i, d in enumerate(remaining, 1)])
         await browser.close()
 
     print(f"\nDone. Full database saved to {output}")
@@ -566,7 +601,8 @@ def main():
     parser.add_argument("--query", default="", help="Search a specific course/dept. Omit to scrape all departments.")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help=f"Output JSON file (default: {DEFAULT_OUTPUT})")
     parser.add_argument("--no-resume", action="store_true", help="Ignore existing file and start fresh")
-    parser.add_argument("--workers", type=int, default=4, help="Parallel browser tabs (default: 4)")
+    parser.add_argument("--workers", type=int, default=4, help="Parallel browser tabs per department (default: 4)")
+    parser.add_argument("--dept-workers", type=int, default=2, help="Departments to scrape in parallel (default: 2)")
     parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
     parser.add_argument("--debug-columns", action="store_true", help="Print raw cell values for first 3 rows to verify column mapping")
     parser.add_argument("--username", default=os.environ.get("SCU_USERNAME", ""))
@@ -600,6 +636,7 @@ def main():
             output=args.output,
             resume=not args.no_resume,
             workers=args.workers,
+            dept_workers=args.dept_workers,
             headless=args.headless,
         ))
 

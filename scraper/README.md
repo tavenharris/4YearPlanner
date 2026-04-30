@@ -47,7 +47,8 @@ python scraper/course_eval_scrape.py --query "Math 11"
 |---|---|---|
 | `--query` | *(empty)* | Search term. If omitted, scrapes all departments automatically. Examples: `"CSCI"`, `"Math 11"`, `"ENGL"`. |
 | `--output` | `aggregate_evals.json` | Path to the output JSON file. Defaults to the project root where the upload scripts expect it. |
-| `--workers` | `4` | Number of departments to scrape in parallel. Higher is faster but increases the chance of being rate-limited by the site. Start at `4`, drop to `2` if you see errors. |
+| `--workers` | `4` | Number of parallel browser tabs used **within each department**. Controls how fast a single department's subdivided searches are fetched. Drop to `2` if you see rate-limit errors. |
+| `--dept-workers` | `2` | Number of **departments** to scrape at the same time. Multiplies with `--workers` for total tab count (e.g. `--dept-workers 3 --workers 4` = 12 tabs). Raise to `3`–`4` for maximum speed; lower if the site starts refusing connections. |
 | `--headless` | off | Run the browser in headless mode (no visible window). Only works reliably if your SCU session is already trusted and Duo MFA doesn't prompt. Without this flag the browser window is always visible. |
 | `--no-resume` | off | Ignore any existing `aggregate_evals.json` and start fresh. By default the scraper skips departments that are already in the output file so you can stop and continue a run. |
 | `--username` | `$SCU_USERNAME` | Your SCU username. Defaults to the `SCU_USERNAME` environment variable from `.env.local`. |
